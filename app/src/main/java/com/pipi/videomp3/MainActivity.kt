@@ -321,7 +321,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateHeaderCount() {
         val count = mp3Adapter.itemCount
-        tvHeaderCount.text = "[추출 $count곡]"
+        tvHeaderCount.text = "[추출 ${count}곡]"
     }
 
     private fun checkPermissions() {

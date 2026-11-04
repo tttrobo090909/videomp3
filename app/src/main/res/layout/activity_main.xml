@@ -9,12 +9,23 @@
     android:paddingEnd="12dp"
     android:paddingBottom="8dp">
 
-    <!-- 1. 최상단 헤더: [영상MP3 by 피피] & 우측 [완료/추출중] [N곡] 상태 표시 -->
+    <!-- 1. 최상단 헤더: [🎙️ 녹음버튼] [영상MP3 by 피피] & 우측 [완료/추출중/녹음중] [N곡] -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal">
+
+        <!-- 왼쪽 위 녹음 버튼 (대기: 짙은 회색 / 녹음중: 연두색) -->
+        <ImageButton
+            android:id="@+id/btnRecord"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_mic"
+            android:tint="#777777" />
 
         <TextView
             android:id="@+id/tvHeaderTitle"
@@ -49,7 +60,7 @@
         android:progressTint="@color/secondary"
         android:visibility="gone" />
 
-    <!-- 2. 상단 3개 버튼 배열: [📁 파일] / [🔗 유튜브 링크 (+입력창)] / [⚡ 추출 시작] -->
+    <!-- 2. 상단 3개 버튼 배열: [📁 파일] / [🔗 링크 버튼 + 입력창] / [⚡ 추출 시작] -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="44dp"
@@ -70,7 +81,7 @@
             android:textSize="12sp"
             android:textStyle="bold" />
 
-        <!-- [🔗 유튜브 링크] 입력창 박스 -->
+        <!-- [🔗 링크 붙여넣기 버튼 + 입력창 + ✕] 박스 -->
         <LinearLayout
             android:id="@+id/layoutYoutubeInputBox"
             android:layout_width="0dp"
@@ -81,15 +92,18 @@
             android:background="@color/surface"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="8dp"
+            android:paddingStart="4dp"
             android:paddingEnd="4dp">
 
+            <!-- 누르면 클립보드 내용이 바로 붙여넣어지는 🔗 버튼 -->
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="4dp"
+                android:id="@+id/btnLinkPaste"
+                android:layout_width="32dp"
+                android:layout_height="match_parent"
+                android:background="?android:attr/selectableItemBackground"
+                android:gravity="center"
                 android:text="🔗"
-                android:textSize="13sp" />
+                android:textSize="15sp" />
 
             <EditText
                 android:id="@+id/etYoutubeUrl"
@@ -99,23 +113,17 @@
                 android:background="@null"
                 android:hint="유튜브 링크 입력 (youtu.be/...)"
                 android:maxLines="1"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
                 android:singleLine="true"
                 android:textColor="@color/on_surface"
                 android:textColorHint="@color/on_surface_secondary"
                 android:textSize="12sp" />
 
             <ImageButton
-                android:id="@+id/btnPasteUrl"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_menu_edit"
-                android:tint="@color/on_surface_secondary" />
-
-            <ImageButton
                 android:id="@+id/btnClearUrl"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:tint="@color/on_surface_secondary" />
@@ -148,11 +156,18 @@
         android:textSize="11sp"
         android:visibility="gone" />
 
-    <!-- 3. 하단 목록 헤더 -->
+    <!-- 3. 영역 구분을 위한 짙은 회색 가로선 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="10dp"
+        android:background="#333333" />
+
+    <!-- 4. 하단 목록 헤더 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -165,20 +180,22 @@
             android:textSize="13sp"
             android:textStyle="bold" />
 
+        <!-- 70% 크기로 축소된 새로고침 버튼 (24dp) -->
         <ImageButton
             android:id="@+id/btnRefresh"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:scaleType="fitCenter"
             android:src="@android:drawable/ic_menu_rotate"
             android:tint="@color/on_surface_secondary" />
     </LinearLayout>
 
-    <!-- 4. 추출된 MP3 한 줄 리스트 -->
+    <!-- 5. 추출된 MP3 한 줄 리스트 -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView

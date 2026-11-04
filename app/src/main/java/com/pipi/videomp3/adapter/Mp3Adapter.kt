@@ -3,6 +3,7 @@ package com.pipi.videomp3.adapter
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.media.MediaPlayer
 import android.view.LayoutInflater
 import android.view.View
@@ -10,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.pipi.videomp3.R
 import com.pipi.videomp3.model.Mp3Item
@@ -59,28 +61,26 @@ class Mp3Adapter(
     inner class Mp3ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvTitle: TextView = itemView.findViewById(R.id.tvMp3Title)
         private val tvDuration: TextView = itemView.findViewById(R.id.tvDuration)
-        private val btnPlayPause: ImageButton = itemView.findViewById(R.id.btnPlayPause)
         private val btnOpenSamsung: ImageButton = itemView.findViewById(R.id.btnOpenSamsungMusic)
         private val btnShare: ImageButton = itemView.findViewById(R.id.btnShare)
-        private val btnDelete: ImageButton = itemView.findViewById(R.id.btnDelete)
 
         fun bind(item: Mp3Item, position: Int) {
             tvTitle.text = item.title
-            // 텍스트가 길면 왼쪽으로 스르륵 흐르도록 선택 상태 활성화
             tvTitle.isSelected = true
 
             tvDuration.text = formatTime(item.durationMs)
 
             val isCurrentPlaying = (position == playingItemPosition && mediaPlayer != null && mediaPlayer!!.isPlaying)
 
-            // 재생 중이면 정지(pause) 아이콘으로 변경
+            // 재생 중인 곡은 글자색 파란색(#0381FE), 멈춘 곡은 흰색
             if (isCurrentPlaying) {
-                btnPlayPause.setImageResource(android.R.drawable.ic_media_pause)
+                tvTitle.setTextColor(Color.parseColor("#0381FE"))
             } else {
-                btnPlayPause.setImageResource(android.R.drawable.ic_media_play)
+                tvTitle.setTextColor(ContextCompat.getColor(context, R.color.on_surface))
             }
 
-            btnPlayPause.setOnClickListener {
+            // 파일 제목 클릭 -> 재생 / 일시정지 토글
+            tvTitle.setOnClickListener {
                 if (isCurrentPlaying) {
                     stopPlayback()
                 } else {
@@ -88,16 +88,25 @@ class Mp3Adapter(
                 }
             }
 
+            // 1초 길게 누르면 삭제 기능
+            tvTitle.setOnLongClickListener {
+                confirmDelete(item, position)
+                true
+            }
+
+            itemView.setOnLongClickListener {
+                confirmDelete(item, position)
+                true
+            }
+
+            // 녹색 버튼 클릭 -> 삼성 뮤직으로 열기
             btnOpenSamsung.setOnClickListener {
                 openInSamsungMusic(item)
             }
 
+            // 공유 버튼
             btnShare.setOnClickListener {
                 shareMp3File(item)
-            }
-
-            btnDelete.setOnClickListener {
-                confirmDelete(item, position)
             }
         }
 
@@ -112,8 +121,6 @@ class Mp3Adapter(
                     prepare()
                     start()
                 }
-
-                btnPlayPause.setImageResource(android.R.drawable.ic_media_pause)
 
                 mediaPlayer?.setOnCompletionListener {
                     stopPlayback()

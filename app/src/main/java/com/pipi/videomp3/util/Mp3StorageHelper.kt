@@ -18,99 +18,128 @@ object Mp3StorageHelper {
     private const val SUB_FOLDER = "영상MP3"
 
     /**
-     * 안전한 파일명으로 정제합니다 (특수문자 제거)
+     * 안전한 파일명으로 정제합니다 (특수문자 제거 및 지정 확장자 적용)
      */
-    fun sanitizeFileName(title: String): String {
+    fun sanitizeFileName(title: String, extension: String = ".mp3"): String {
         val clean = title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
-        val finalName = if (clean.isBlank()) "추출음악_${System.currentTimeMillis()}" else clean
-        return if (finalName.endsWith(".mp3", ignoreCase = true)) finalName else "$finalName.mp3"
+        val ext = if (extension.startsWith(".")) extension else ".$extension"
+        val baseName = clean.removeSuffix(".mp3").removeSuffix(".m4a")
+        val finalBase = if (baseName.isBlank()) "추출음악_${System.currentTimeMillis()}" else baseName
+        return "$finalBase$ext"
     }
 
     /**
-     * 입력 스트림(다운로드 또는 변환)을 스마트폰의 [Music/영상MP3] 폴더에 MP3 파일로 저장합니다.
+     * 입력 스트림(다운로드 또는 변환)을 스마트폰의 [Music/영상MP3] 폴더에 파일로 저장합니다.
+     * MediaStore 저장을 1차 시도하고, 실패 시 직접 파일 시스템 및 MediaScanner를 통한 2차 안전 저장을 수행합니다.
      */
     fun saveStreamToMusicFolder(
         context: Context,
         rawTitle: String,
         inputStream: InputStream,
         totalBytes: Long,
+        mimeType: String = "audio/mpeg",
+        extension: String = ".mp3",
         onProgress: (Int) -> Unit
     ): Uri? {
-        val fileName = sanitizeFileName(rawTitle)
+        val baseFileName = sanitizeFileName(rawTitle, extension)
         val resolver = context.contentResolver
 
+        // 1차: MediaStore Scoped Storage 시도 (Android 10+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            var fileName = baseFileName
             val contentValues = ContentValues().apply {
                 put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
-                put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
+                put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
                 put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/$SUB_FOLDER")
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
             }
 
-            val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return null
-
-            try {
-                resolver.openOutputStream(uri)?.use { outputStream ->
-                    val buffer = ByteArray(8 * 1024)
-                    var bytesRead: Int
-                    var totalWritten = 0L
-
-                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                        outputStream.write(buffer, 0, bytesRead)
-                        totalWritten += bytesRead
-                        if (totalBytes > 0) {
-                            val percent = ((totalWritten * 100) / totalBytes).toInt().coerceIn(0, 100)
-                            onProgress(percent)
-                        }
-                    }
-                    outputStream.flush()
-                }
-
-                contentValues.clear()
-                contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
-                resolver.update(uri, contentValues, null, null)
-
-                return uri
+            var uri = try {
+                resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
             } catch (e: Exception) {
-                resolver.delete(uri, null, null)
-                e.printStackTrace()
-                return null
+                null
             }
-        } else {
-            // Android 9 이하 레거시 저장
+
+            // 중복 파일명 등으로 실패할 경우 타임스탬프를 덧붙여 재시도
+            if (uri == null) {
+                val timeStamp = System.currentTimeMillis() % 100000
+                fileName = sanitizeFileName("${rawTitle}_$timeStamp", extension)
+                contentValues.put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+                uri = try {
+                    resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            if (uri != null) {
+                try {
+                    resolver.openOutputStream(uri)?.use { outputStream ->
+                        val buffer = ByteArray(8 * 1024)
+                        var bytesRead: Int
+                        var totalWritten = 0L
+
+                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                            outputStream.write(buffer, 0, bytesRead)
+                            totalWritten += bytesRead
+                            if (totalBytes > 0) {
+                                val percent = ((totalWritten * 100) / totalBytes).toInt().coerceIn(0, 100)
+                                onProgress(percent)
+                            }
+                        }
+                        outputStream.flush()
+                    }
+
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+
+                    return uri
+                } catch (e: Exception) {
+                    try { resolver.delete(uri, null, null) } catch (ignored: Exception) {}
+                    e.printStackTrace()
+                }
+            }
+        }
+
+        // 2차 대체 저장: 직접 파일 시스템 저장 후 MediaScanner 연동
+        try {
             val musicDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), SUB_FOLDER)
             if (!musicDir.exists()) musicDir.mkdirs()
 
-            val targetFile = File(musicDir, fileName)
-            try {
-                FileOutputStream(targetFile).use { outputStream ->
-                    val buffer = ByteArray(8 * 1024)
-                    var bytesRead: Int
-                    var totalWritten = 0L
-
-                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                        outputStream.write(buffer, 0, bytesRead)
-                        totalWritten += bytesRead
-                        if (totalBytes > 0) {
-                            val percent = ((totalWritten * 100) / totalBytes).toInt().coerceIn(0, 100)
-                            onProgress(percent)
-                        }
-                    }
-                    outputStream.flush()
-                }
-
-                var scannedUri: Uri? = null
-                MediaScannerConnection.scanFile(
-                    context,
-                    arrayOf(targetFile.absolutePath),
-                    arrayOf("audio/mpeg")
-                ) { _, uri -> scannedUri = uri }
-
-                return scannedUri ?: Uri.fromFile(targetFile)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                return null
+            var targetFile = File(musicDir, baseFileName)
+            if (targetFile.exists()) {
+                val timeStamp = System.currentTimeMillis() % 100000
+                targetFile = File(musicDir, sanitizeFileName("${rawTitle}_$timeStamp", extension))
             }
+
+            FileOutputStream(targetFile).use { outputStream ->
+                val buffer = ByteArray(8 * 1024)
+                var bytesRead: Int
+                var totalWritten = 0L
+
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                    totalWritten += bytesRead
+                    if (totalBytes > 0) {
+                        val percent = ((totalWritten * 100) / totalBytes).toInt().coerceIn(0, 100)
+                        onProgress(percent)
+                    }
+                }
+                outputStream.flush()
+            }
+
+            var scannedUri: Uri? = null
+            MediaScannerConnection.scanFile(
+                context,
+                arrayOf(targetFile.absolutePath),
+                arrayOf(mimeType)
+            ) { _, u -> scannedUri = u }
+
+            return scannedUri ?: Uri.fromFile(targetFile)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
         }
     }
 

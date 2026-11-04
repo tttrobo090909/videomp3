@@ -9,23 +9,12 @@
     android:paddingEnd="12dp"
     android:paddingBottom="8dp">
 
-    <!-- 1. 최상단 헤더: [🎙️ 녹음버튼] [영상MP3 by 피피] & 우측 [완료/추출중/녹음중] [N곡] -->
+    <!-- 1. 최상단 헤더: [영상MP3 by 피피] & 우측 요약 상태창 [완료/추출중/녹음중] [N곡] -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal">
-
-        <!-- 왼쪽 위 녹음 버튼 (대기: 짙은 회색 / 녹음중: 연두색) -->
-        <ImageButton
-            android:id="@+id/btnRecord"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="6dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_mic"
-            android:tint="#777777" />
 
         <TextView
             android:id="@+id/tvHeaderTitle"
@@ -47,26 +36,34 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- 초슬림 진행상태 프로그레스 바 -->
-    <ProgressBar
-        android:id="@+id/progressBar"
-        style="?android:attr/progressBarStyleHorizontal"
+    <!-- 2. 상단 작업영역 상단 회색 구분바 -->
+    <View
         android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:layout_marginTop="8dp"
-        android:indeterminate="false"
-        android:max="100"
-        android:progress="0"
-        android:progressTint="@color/secondary"
-        android:visibility="gone" />
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="10dp"
+        android:background="#333333" />
 
-    <!-- 2. 상단 3개 버튼 배열: [📁 파일] / [🔗 링크 버튼 + 입력창] / [⚡ 추출 시작] -->
+    <!-- 3. 추출 조작 영역: [♤/♠ 녹음] / [📁 파일] / [🔗 링크 입력창] / [⚡ 추출 시작] -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="44dp"
-        android:layout_marginTop="10dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
+
+        <!-- [♤ / ♠ 녹음 버튼] (대기: ♤ 짙은 회색 / 녹음중: ♠ 흰색) -->
+        <TextView
+            android:id="@+id/btnRecord"
+            android:layout_width="38dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_spade_btn"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="♤"
+            android:textColor="#888888"
+            android:textSize="20sp" />
 
         <!-- [📁 파일] 버튼 -->
         <Button
@@ -98,12 +95,12 @@
             <!-- 누르면 클립보드 내용이 바로 붙여넣어지는 🔗 버튼 -->
             <TextView
                 android:id="@+id/btnLinkPaste"
-                android:layout_width="32dp"
+                android:layout_width="30dp"
                 android:layout_height="match_parent"
                 android:background="?android:attr/selectableItemBackground"
                 android:gravity="center"
                 android:text="🔗"
-                android:textSize="15sp" />
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etYoutubeUrl"
@@ -122,8 +119,8 @@
 
             <ImageButton
                 android:id="@+id/btnClearUrl"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:tint="@color/on_surface_secondary" />
@@ -143,28 +140,15 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- 선택된 파일 또는 작업 진행 안내 서브 텍스트 -->
-    <TextView
-        android:id="@+id/tvSubStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:ellipsize="middle"
-        android:gravity="center"
-        android:singleLine="true"
-        android:textColor="@color/secondary"
-        android:textSize="11sp"
-        android:visibility="gone" />
-
-    <!-- 3. 영역 구분을 위한 짙은 회색 가로선 -->
+    <!-- 4. 상단 작업영역 하단 회색 구분바 (상단 구분바와 동일 사이즈) -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="10dp"
         android:layout_marginBottom="10dp"
         android:background="#333333" />
 
-    <!-- 4. 하단 목록 헤더 -->
+    <!-- 5. 하단 목록 헤더 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -180,18 +164,18 @@
             android:textSize="13sp"
             android:textStyle="bold" />
 
-        <!-- 70% 크기로 축소된 새로고침 버튼 (24dp) -->
+        <!-- 70% 크기로 축소된 새로고침 버튼 (18dp) -->
         <ImageButton
             android:id="@+id/btnRefresh"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:scaleType="fitCenter"
             android:src="@android:drawable/ic_menu_rotate"
             android:tint="@color/on_surface_secondary" />
     </LinearLayout>
 
-    <!-- 5. 추출된 MP3 한 줄 리스트 -->
+    <!-- 6. 추출된 MP3 한 줄 리스트 -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

@@ -6,6 +6,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -26,16 +27,21 @@ object LocalVideoExtractor {
         val tempOutputFile = File(context.cacheDir, "extracted_${System.currentTimeMillis()}.m4a")
         val extractor = MediaExtractor()
         var muxer: MediaMuxer? = null
+        var pfd: ParcelFileDescriptor? = null
 
         try {
             withContext(Dispatchers.Main) {
-                onProgress(10, "동영상 오디오 트랙 분석 중...")
+                onProgress(10, "분석중")
             }
 
-            val pfd = context.contentResolver.openFileDescriptor(videoUri, "r")
+            pfd = try {
+                context.contentResolver.openFileDescriptor(videoUri, "r")
+            } catch (e: Exception) {
+                null
+            }
+
             if (pfd != null) {
                 extractor.setDataSource(pfd.fileDescriptor)
-                pfd.close()
             } else {
                 extractor.setDataSource(context, videoUri, null)
             }
@@ -72,9 +78,10 @@ object LocalVideoExtractor {
             val bufferInfo = MediaCodec.BufferInfo()
 
             withContext(Dispatchers.Main) {
-                onProgress(40, "초고속 오디오 트랙 분리 추출 중...")
+                onProgress(40, "추출중")
             }
 
+            var samplesCount = 0
             while (true) {
                 bufferInfo.offset = 0
                 bufferInfo.size = extractor.readSampleData(buffer, 0)
@@ -85,7 +92,12 @@ object LocalVideoExtractor {
                 bufferInfo.flags = extractor.sampleFlags
 
                 muxer.writeSampleData(muxerAudioTrack, buffer, bufferInfo)
+                samplesCount++
                 extractor.advance()
+            }
+
+            if (samplesCount == 0) {
+                return@withContext Result.failure(Exception("오디오 데이터를 읽지 못했습니다."))
             }
 
             muxer.stop()
@@ -95,7 +107,7 @@ object LocalVideoExtractor {
             extractor.release()
 
             withContext(Dispatchers.Main) {
-                onProgress(85, "Music/영상MP3 폴더에 저장 중...")
+                onProgress(85, "저장중")
             }
 
             val cleanTitle = fileName.substringBeforeLast(".")
@@ -105,7 +117,9 @@ object LocalVideoExtractor {
                     rawTitle = cleanTitle,
                     inputStream = input,
                     totalBytes = tempOutputFile.length(),
-                    onProgress = { onProgress(85 + (it * 15 / 100), "저장 중...") }
+                    mimeType = "audio/mp4",
+                    extension = ".m4a",
+                    onProgress = { onProgress(85 + (it * 15 / 100), "저장중") }
                 )
             }
 
@@ -113,7 +127,7 @@ object LocalVideoExtractor {
 
             if (savedUri != null) {
                 withContext(Dispatchers.Main) {
-                    onProgress(100, "추출 완료! 🎉")
+                    onProgress(100, "완료")
                 }
                 Result.success(savedUri)
             } else {
@@ -124,8 +138,11 @@ object LocalVideoExtractor {
             e.printStackTrace()
             try { muxer?.release() } catch (ex: Exception) {}
             try { extractor.release() } catch (ex: Exception) {}
+            try { pfd?.close() } catch (ex: Exception) {}
             tempOutputFile.delete()
             Result.failure(e)
+        } finally {
+            try { pfd?.close() } catch (ex: Exception) {}
         }
     }
 }

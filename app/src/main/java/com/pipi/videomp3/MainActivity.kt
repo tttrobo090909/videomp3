@@ -18,7 +18,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,17 +41,15 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var btnRecord: ImageButton
     private lateinit var tvHeaderStatus: TextView
-    private lateinit var progressBar: ProgressBar
 
+    private lateinit var btnRecord: TextView
     private lateinit var btnFile: Button
     private lateinit var btnLinkPaste: TextView
     private lateinit var etYoutubeUrl: EditText
     private lateinit var btnClearUrl: ImageButton
     private lateinit var btnStartExtract: Button
 
-    private lateinit var tvSubStatus: TextView
     private lateinit var btnRefresh: ImageButton
     private lateinit var rvMp3List: RecyclerView
     private lateinit var tvEmptyMessage: TextView
@@ -79,10 +76,8 @@ class MainActivity : AppCompatActivity() {
             selectedLocalVideoUri = uri
             selectedLocalVideoName = queryFileName(uri)
             etYoutubeUrl.setText("")
-            tvSubStatus.text = "선택된 파일: $selectedLocalVideoName"
-            tvSubStatus.visibility = View.VISIBLE
             updateStatusText()
-            Toast.makeText(this, "동영상 선택 완료! '추출 시작'을 누르면 바로 변환됩니다.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "동영상 선택 완료! '⚡ 추출 시작'을 누르면 변환됩니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -123,23 +118,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        btnRecord = findViewById(R.id.btnRecord)
         tvHeaderStatus = findViewById(R.id.tvHeaderStatus)
-        progressBar = findViewById(R.id.progressBar)
 
+        btnRecord = findViewById(R.id.btnRecord)
         btnFile = findViewById(R.id.btnFile)
         btnLinkPaste = findViewById(R.id.btnLinkPaste)
         etYoutubeUrl = findViewById(R.id.etYoutubeUrl)
         btnClearUrl = findViewById(R.id.btnClearUrl)
         btnStartExtract = findViewById(R.id.btnStartExtract)
 
-        tvSubStatus = findViewById(R.id.tvSubStatus)
         btnRefresh = findViewById(R.id.btnRefresh)
         rvMp3List = findViewById(R.id.rvMp3List)
         tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
 
-        // 마이크 버튼 초기 상태: 짙은 회색
-        btnRecord.setColorFilter(Color.parseColor("#777777"))
+        // 녹음 버튼 초기 상태: ♤ (짙은 회색)
+        btnRecord.text = "♤"
+        btnRecord.setTextColor(Color.parseColor("#888888"))
 
         mp3Adapter = Mp3Adapter(this) {
             updateStatusText()
@@ -150,7 +144,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        // [🎙️ 마이크 녹음] 버튼 클릭 -> 녹음 시작 / 중지
+        // [♤ / ♠ 녹음] 버튼 터치 -> 녹음 시작 / 중지
         btnRecord.setOnClickListener {
             if (isRecording) {
                 stopVoiceRecording(save = true)
@@ -174,7 +168,6 @@ class MainActivity : AppCompatActivity() {
             etYoutubeUrl.setText("")
             selectedLocalVideoUri = null
             selectedLocalVideoName = ""
-            tvSubStatus.visibility = View.GONE
             updateStatusText()
         }
 
@@ -189,12 +182,12 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // [⚡ 추출 시작] 버튼 클릭
+        // [⚡ 추출 시작] 버튼 클릭 -> 파일 또는 유튜브 링크 자동 판별 추출
         btnStartExtract.setOnClickListener {
             startExtractionFlow()
         }
 
-        // 목록 새로고침 (24dp 버튼)
+        // 목록 새로고침 버튼
         btnRefresh.setOnClickListener {
             loadMp3Files()
             Toast.makeText(this, "Music/영상MP3 목록을 새로고침했습니다.", Toast.LENGTH_SHORT).show()
@@ -239,11 +232,9 @@ class MainActivity : AppCompatActivity() {
             isRecording = true
             recordingSeconds = 0
 
-            // 마이크 버튼 연두색(#81C784)으로 변경!
-            btnRecord.setColorFilter(Color.parseColor("#81C784"))
-
-            tvSubStatus.text = "🔴 음성 녹음 중... (마이크 버튼을 다시 누르면 저장됩니다)"
-            tvSubStatus.visibility = View.VISIBLE
+            // 녹음 시작 시: ♠ (하얀색 채움)
+            btnRecord.text = "♠"
+            btnRecord.setTextColor(Color.WHITE)
 
             recordingTimerRunnable = object : Runnable {
                 override fun run() {
@@ -260,13 +251,14 @@ class MainActivity : AppCompatActivity() {
             }
             recordingHandler.post(recordingTimerRunnable!!)
 
-            Toast.makeText(this, "녹음이 시작되었습니다. 마이크 버튼을 다시 누르면 저장됩니다.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "녹음이 시작되었습니다. ♠ 버튼을 다시 누르면 저장됩니다.", Toast.LENGTH_SHORT).show()
 
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "녹음을 시작하지 못했습니다: ${e.message}", Toast.LENGTH_SHORT).show()
             isRecording = false
-            btnRecord.setColorFilter(Color.parseColor("#777777"))
+            btnRecord.text = "♤"
+            btnRecord.setTextColor(Color.parseColor("#888888"))
         }
     }
 
@@ -281,9 +273,9 @@ class MainActivity : AppCompatActivity() {
         mediaRecorder = null
         isRecording = false
 
-        // 마이크 버튼 다시 짙은 회색(#777777)으로 복귀!
-        btnRecord.setColorFilter(Color.parseColor("#777777"))
-        tvSubStatus.visibility = View.GONE
+        // 녹음 종료 시: ♤ (짙은 회색)
+        btnRecord.text = "♤"
+        btnRecord.setTextColor(Color.parseColor("#888888"))
 
         val temp = tempRecordingFile
         if (save && temp != null && temp.exists() && temp.length() > 0) {
@@ -297,6 +289,8 @@ class MainActivity : AppCompatActivity() {
                         rawTitle = finalTitle,
                         inputStream = input,
                         totalBytes = temp.length(),
+                        mimeType = "audio/mp4",
+                        extension = ".m4a",
                         onProgress = {}
                     )
                 }
@@ -352,10 +346,8 @@ class MainActivity : AppCompatActivity() {
                 context = this@MainActivity,
                 youtubeUrl = url,
                 onProgress = { percent, statusText ->
-                    progressBar.progress = percent
-                    tvSubStatus.text = statusText
                     val count = mp3Adapter.itemCount
-                    tvHeaderStatus.text = "[추출중 ${percent}%] [${count}곡]"
+                    tvHeaderStatus.text = "[$statusText] [${count}곡]"
                 }
             )
 
@@ -384,10 +376,8 @@ class MainActivity : AppCompatActivity() {
                 videoUri = uri,
                 fileName = selectedLocalVideoName,
                 onProgress = { percent, statusText ->
-                    progressBar.progress = percent
-                    tvSubStatus.text = statusText
                     val count = mp3Adapter.itemCount
-                    tvHeaderStatus.text = "[추출중 ${percent}%] [${count}곡]"
+                    tvHeaderStatus.text = "[$statusText] [${count}곡]"
                 }
             )
 
@@ -397,7 +387,6 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this@MainActivity, "Music/영상MP3 폴더에 저장되었습니다! 🎵", Toast.LENGTH_LONG).show()
                 selectedLocalVideoUri = null
                 selectedLocalVideoName = ""
-                tvSubStatus.visibility = View.GONE
                 loadMp3Files()
             } else {
                 val err = result.exceptionOrNull()?.message ?: "알 수 없는 오류"
@@ -409,18 +398,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun setExtractingState(extracting: Boolean) {
         isExtracting = extracting
-        if (extracting) {
-            progressBar.visibility = View.VISIBLE
-            progressBar.progress = 0
-            tvSubStatus.visibility = View.VISIBLE
-            btnFile.isEnabled = false
-            btnStartExtract.isEnabled = false
-            btnRecord.isEnabled = false
-        } else {
-            progressBar.visibility = View.GONE
-            btnFile.isEnabled = true
-            btnStartExtract.isEnabled = true
-            btnRecord.isEnabled = true
+        btnFile.isEnabled = !extracting
+        btnStartExtract.isEnabled = !extracting
+        btnRecord.isEnabled = !extracting
+        if (!extracting) {
             updateStatusText()
         }
     }
@@ -441,19 +422,16 @@ class MainActivity : AppCompatActivity() {
      * - 평소 / 완료 시: [완료] [N곡]
      * - 파일 선택 시: [동영상 선택중] [N곡]
      * - 링크 입력 시: [유튜브 선택중] [N곡]
-     * - 추출 시: [추출중 N%] [N곡]
+     * - 추출 시: [추출중] [N곡] / [저장중] [N곡]
      */
     private fun updateStatusText() {
         val count = mp3Adapter.itemCount
 
         if (isRecording) {
-            // 녹음 타이머가 별도 처리
             return
         }
 
         if (isExtracting) {
-            val pct = progressBar.progress
-            tvHeaderStatus.text = "[추출중 ${pct}%] [${count}곡]"
             return
         }
 
@@ -475,7 +453,6 @@ class MainActivity : AppCompatActivity() {
             if (text.isNotBlank()) {
                 selectedLocalVideoUri = null
                 selectedLocalVideoName = ""
-                tvSubStatus.visibility = View.GONE
                 etYoutubeUrl.setText(text.trim())
                 etYoutubeUrl.setSelection(etYoutubeUrl.text.length)
                 updateStatusText()

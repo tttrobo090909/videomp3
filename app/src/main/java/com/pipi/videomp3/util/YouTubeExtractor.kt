@@ -33,7 +33,7 @@ object YouTubeExtractor {
             }
 
             withContext(Dispatchers.Main) {
-                onProgress(10, "유튜브 영상 정보 및 음원 변환 준비 중...")
+                onProgress(10, "준비중")
             }
 
             // 1. Samplecut API 호출 (무료 초고속 320kbps MP3 변환)
@@ -49,7 +49,6 @@ object YouTubeExtractor {
 
             val apiResponse = client.newCall(apiRequest).execute()
             if (!apiResponse.isSuccessful) {
-                // 대체 API 또는 상세 오류
                 val errBody = apiResponse.body?.string() ?: ""
                 return@withContext Result.failure(Exception("음원 추출 서버 응답 실패 ($errBody)"))
             }
@@ -63,7 +62,7 @@ object YouTubeExtractor {
             }
 
             withContext(Dispatchers.Main) {
-                onProgress(30, "MP3 음원 스트리밍 다운로드 중...")
+                onProgress(30, "다운로드중 30%")
             }
 
             // 2. 변환된 MP3 스트림 다운로드
@@ -84,20 +83,21 @@ object YouTubeExtractor {
                 rawTitle = videoTitle,
                 inputStream = body.byteStream(),
                 totalBytes = contentLength,
+                mimeType = "audio/mpeg",
+                extension = ".mp3",
                 onProgress = { pct ->
-                    // 30% ~ 100% 매핑
                     val scaledPct = 30 + (pct * 70 / 100)
-                    onProgress(scaledPct, "다운로드 및 저장 중 ($scaledPct%)...")
+                    onProgress(scaledPct, "다운로드중 ${scaledPct}%")
                 }
             )
 
             if (savedUri != null) {
                 withContext(Dispatchers.Main) {
-                    onProgress(100, "추출 및 저장 완료! 🎉")
+                    onProgress(100, "완료")
                 }
                 Result.success(savedUri)
             } else {
-                Result.failure(Exception("Music/영상MP3 폴더에 저장하지 못했습니다."))
+                Result.failure(Exception("Music/영상MP3 폴더에 저장 실패"))
             }
 
         } catch (e: Exception) {

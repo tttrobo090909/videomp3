@@ -4,22 +4,16 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.media.MediaPlayer
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.ImageButton
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.pipi.videomp3.R
 import com.pipi.videomp3.model.Mp3Item
 import com.pipi.videomp3.util.Mp3StorageHelper
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 class Mp3Adapter(
@@ -31,9 +25,6 @@ class Mp3Adapter(
     private var mediaPlayer: MediaPlayer? = null
     private var playingItemPosition: Int = -1
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var updateSeekBarRunnable: Runnable? = null
-
     fun submitList(newItems: List<Mp3Item>) {
         stopPlayback()
         items.clear()
@@ -42,7 +33,7 @@ class Mp3Adapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Mp3ViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_mp3_card, parent, false)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_mp3_row, parent, false)
         return Mp3ViewHolder(view)
     }
 
@@ -53,7 +44,6 @@ class Mp3Adapter(
     override fun getItemCount(): Int = items.size
 
     fun stopPlayback() {
-        updateSeekBarRunnable?.let { handler.removeCallbacks(it) }
         mediaPlayer?.let {
             if (it.isPlaying) it.stop()
             it.release()
@@ -68,37 +58,26 @@ class Mp3Adapter(
 
     inner class Mp3ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvTitle: TextView = itemView.findViewById(R.id.tvMp3Title)
-        private val tvInfo: TextView = itemView.findViewById(R.id.tvMp3Info)
-        private val btnPlayPause: Button = itemView.findViewById(R.id.btnPlayPause)
-        private val seekBar: SeekBar = itemView.findViewById(R.id.seekBarPlayer)
-        private val tvPlayerTime: TextView = itemView.findViewById(R.id.tvPlayerTime)
-        private val btnShare: Button = itemView.findViewById(R.id.btnShare)
-        private val btnOpenSamsung: Button = itemView.findViewById(R.id.btnOpenSamsungMusic)
+        private val tvDuration: TextView = itemView.findViewById(R.id.tvDuration)
+        private val btnPlayPause: ImageButton = itemView.findViewById(R.id.btnPlayPause)
+        private val btnOpenSamsung: ImageButton = itemView.findViewById(R.id.btnOpenSamsungMusic)
+        private val btnShare: ImageButton = itemView.findViewById(R.id.btnShare)
         private val btnDelete: ImageButton = itemView.findViewById(R.id.btnDelete)
 
         fun bind(item: Mp3Item, position: Int) {
             tvTitle.text = item.title
+            // 텍스트가 길면 왼쪽으로 스르륵 흐르도록 선택 상태 활성화
+            tvTitle.isSelected = true
 
-            val sizeMb = String.format(Locale.getDefault(), "%.1f MB", item.sizeBytes / (1024.0 * 1024.0))
-            val dateStr = if (item.dateAddedSec > 0) {
-                val sdf = SimpleDateFormat("M월 d일", Locale.KOREA)
-                sdf.format(Date(item.dateAddedSec * 1000L))
-            } else {
-                "오늘"
-            }
-            val durStr = formatTime(item.durationMs)
-            tvInfo.text = "재생시간 $durStr · $sizeMb · $dateStr 추출"
+            tvDuration.text = formatTime(item.durationMs)
 
             val isCurrentPlaying = (position == playingItemPosition && mediaPlayer != null && mediaPlayer!!.isPlaying)
 
+            // 재생 중이면 정지(pause) 아이콘으로 변경
             if (isCurrentPlaying) {
-                btnPlayPause.text = "⏸ 정지"
-                seekBar.isEnabled = true
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_pause)
             } else {
-                btnPlayPause.text = "▶ 재생"
-                seekBar.progress = 0
-                seekBar.isEnabled = false
-                tvPlayerTime.text = durStr
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_play)
             }
 
             btnPlayPause.setOnClickListener {
@@ -134,35 +113,7 @@ class Mp3Adapter(
                     start()
                 }
 
-                val totalDuration = mediaPlayer?.duration ?: item.durationMs.toInt()
-                seekBar.max = totalDuration
-                seekBar.isEnabled = true
-                btnPlayPause.text = "⏸ 정지"
-
-                seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(sb: SeekBar?, prog: Int, fromUser: Boolean) {
-                        if (fromUser) {
-                            mediaPlayer?.seekTo(prog)
-                            tvPlayerTime.text = formatTime(prog.toLong())
-                        }
-                    }
-                    override fun onStartTrackingTouch(sb: SeekBar?) {}
-                    override fun onStopTrackingTouch(sb: SeekBar?) {}
-                })
-
-                updateSeekBarRunnable = object : Runnable {
-                    override fun run() {
-                        mediaPlayer?.let { mp ->
-                            if (mp.isPlaying) {
-                                val current = mp.currentPosition
-                                seekBar.progress = current
-                                tvPlayerTime.text = "${formatTime(current.toLong())} / ${formatTime(totalDuration.toLong())}"
-                                handler.postDelayed(this, 500)
-                            }
-                        }
-                    }
-                }
-                handler.post(updateSeekBarRunnable!!)
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_pause)
 
                 mediaPlayer?.setOnCompletionListener {
                     stopPlayback()

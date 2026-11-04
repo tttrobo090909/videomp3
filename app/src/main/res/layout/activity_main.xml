@@ -4,12 +4,12 @@
     android:layout_height="match_parent"
     android:background="@color/background"
     android:orientation="vertical"
-    android:paddingStart="16dp"
-    android:paddingTop="16dp"
-    android:paddingEnd="16dp"
+    android:paddingStart="12dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="12dp"
     android:paddingBottom="8dp">
 
-    <!-- 1. 최상단 헤더: [영상MP3 by 피피] & [추출 완료 N곡] -->
+    <!-- 1. 최상단 헤더: [영상MP3 by 피피] & 우측 [완료/추출중] [N곡] 상태 표시 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -23,16 +23,16 @@
             android:layout_weight="1"
             android:text="[영상MP3 by 피피]"
             android:textColor="@color/on_surface"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/tvHeaderCount"
+            android:id="@+id/tvHeaderStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="[추출 0곡]"
+            android:text="[완료] [0곡]"
             android:textColor="@color/secondary"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -41,61 +41,55 @@
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="4dp"
-        android:layout_marginTop="10dp"
+        android:layout_height="3dp"
+        android:layout_marginTop="8dp"
         android:indeterminate="false"
         android:max="100"
         android:progress="0"
         android:progressTint="@color/secondary"
         android:visibility="gone" />
 
-    <!-- 2. 선택 탭: [🔗 유튜브 링크] / [📁 동영상 파일] -->
+    <!-- 2. 상단 3개 버튼 배열: [📁 파일] / [🔗 유튜브 링크 (+입력창)] / [⚡ 추출 시작] -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_height="44dp"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
+        <!-- [📁 파일] 버튼 -->
         <Button
-            android:id="@+id/btnTabYoutube"
-            android:layout_width="0dp"
-            android:layout_height="42dp"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:backgroundTint="@color/primary"
-            android:text="🔗 유튜브 링크"
-            android:textColor="@color/on_surface"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/btnTabLocal"
-            android:layout_width="0dp"
-            android:layout_height="42dp"
-            android:layout_marginStart="4dp"
-            android:layout_weight="1"
+            android:id="@+id/btnFile"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
             android:backgroundTint="@color/surface_variant"
-            android:text="📁 동영상 파일"
-            android:textColor="@color/on_surface_secondary"
-            android:textSize="14sp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="📁 파일"
+            android:textColor="@color/on_surface"
+            android:textSize="12sp"
             android:textStyle="bold" />
-    </LinearLayout>
 
-    <!-- 3-A. 유튜브 링크 입력 영역 -->
-    <LinearLayout
-        android:id="@+id/layoutYoutubeInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:background="@color/surface"
-        android:orientation="vertical"
-        android:padding="12dp">
-
+        <!-- [🔗 유튜브 링크] 입력창 박스 -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:id="@+id/layoutYoutubeInputBox"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:background="@color/surface"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="4dp"
+                android:text="🔗"
+                android:textSize="13sp" />
 
             <EditText
                 android:id="@+id/etYoutubeUrl"
@@ -108,117 +102,57 @@
                 android:singleLine="true"
                 android:textColor="@color/on_surface"
                 android:textColorHint="@color/on_surface_secondary"
-                android:textSize="14sp" />
+                android:textSize="12sp" />
+
+            <ImageButton
+                android:id="@+id/btnPasteUrl"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_edit"
+                android:tint="@color/on_surface_secondary" />
 
             <ImageButton
                 android:id="@+id/btnClearUrl"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:tint="@color/on_surface_secondary" />
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnPasteUrl"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:backgroundTint="@color/surface_variant"
-                android:text="📋 붙여넣기"
-                android:textColor="@color/on_surface"
-                android:textSize="12sp" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <!-- 깔끔한 크기의 추출 버튼 -->
-            <Button
-                android:id="@+id/btnExtractYoutube"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:backgroundTint="@color/primary"
-                android:text="🎵 MP3 추출"
-                android:textColor="@color/on_surface"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <!-- 3-B. 로컬 동영상 파일 선택 영역 -->
-    <LinearLayout
-        android:id="@+id/layoutLocalInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:background="@color/surface"
-        android:orientation="vertical"
-        android:padding="12dp"
-        android:visibility="gone">
-
+        <!-- [⚡ 추출 시작] 버튼 -->
         <Button
-            android:id="@+id/btnSelectLocalVideo"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:backgroundTint="@color/surface_variant"
-            android:text="🎬 스마트폰에서 동영상 파일 선택"
+            android:id="@+id/btnStartExtract"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:backgroundTint="@color/primary"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="⚡ 추출 시작"
             android:textColor="@color/on_surface"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/tvSelectedVideoName"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:ellipsize="middle"
-            android:singleLine="true"
-            android:text="선택된 동영상 없음"
-            android:textColor="@color/on_surface_secondary"
-            android:textSize="12sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="end"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnExtractLocal"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:backgroundTint="@color/primary"
-                android:text="🎵 MP3 추출"
-                android:textColor="@color/on_surface"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+            android:textSize="12sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- 상태 알림 텍스트 -->
+    <!-- 선택된 파일 또는 작업 진행 안내 서브 텍스트 -->
     <TextView
-        android:id="@+id/tvStatus"
+        android:id="@+id/tvSubStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
+        android:ellipsize="middle"
         android:gravity="center"
+        android:singleLine="true"
         android:textColor="@color/secondary"
-        android:textSize="12sp"
+        android:textSize="11sp"
         android:visibility="gone" />
 
-    <!-- 4. 하단 목록 헤더 -->
+    <!-- 3. 하단 목록 헤더 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="10dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -228,7 +162,7 @@
             android:layout_weight="1"
             android:text="📂 내 추출 음악 (Music/영상MP3)"
             android:textColor="@color/on_surface"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
         <ImageButton
@@ -240,11 +174,11 @@
             android:tint="@color/on_surface_secondary" />
     </LinearLayout>
 
-    <!-- 추출된 MP3 목록 -->
+    <!-- 4. 추출된 MP3 한 줄 리스트 -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView
@@ -261,9 +195,9 @@
             android:layout_gravity="center"
             android:gravity="center"
             android:lineSpacingExtra="4dp"
-            android:text="추출된 MP3 파일이 없습니다.\n상단에서 유튜브 링크나 영상을 넣어 추출해 보세요! 🎵"
+            android:text="Music/영상MP3 폴더에 추출된 곡이 없습니다.\n상단에서 유튜브 링크나 영상 파일을 추출해 보세요! 🎵"
             android:textColor="@color/on_surface_secondary"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:visibility="gone" />
     </FrameLayout>
 

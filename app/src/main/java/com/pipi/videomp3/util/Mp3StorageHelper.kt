@@ -115,26 +115,44 @@ object Mp3StorageHelper {
     }
 
     /**
-     * [Music/영상MP3] 폴더 안에 저장된 모든 MP3 파일 목록을 조회합니다 (최신순).
+     * 오직 [Music/영상MP3] 폴더 안에 저장된 파일만 엄격하게 필터링하여 조회합니다 (최신순).
+     * 스마트폰의 다른 음악이나 통화녹음 등은 일절 조회되지 않습니다.
      */
     fun getAllExtractedMp3Files(context: Context): List<Mp3Item> {
         val list = mutableListOf<Mp3Item>()
-        val projection = arrayOf(
+        val projectionList = mutableListOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.DISPLAY_NAME,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.SIZE,
-            MediaStore.Audio.Media.DATE_ADDED
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATA
         )
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            projectionList.add(MediaStore.Audio.Media.RELATIVE_PATH)
+        }
+
+        val projection = projectionList.toTypedArray()
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+
+        val selection: String
+        val selectionArgs: Array<String>
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            selection = "(${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? OR ${MediaStore.Audio.Media.DATA} LIKE ?) AND (${MediaStore.Audio.Media.DISPLAY_NAME} LIKE '%.mp3' OR ${MediaStore.Audio.Media.DISPLAY_NAME} LIKE '%.m4a')"
+            selectionArgs = arrayOf("%Music/영상MP3%", "%/Music/영상MP3/%")
+        } else {
+            selection = "${MediaStore.Audio.Media.DATA} LIKE ? AND (${MediaStore.Audio.Media.DISPLAY_NAME} LIKE '%.mp3' OR ${MediaStore.Audio.Media.DISPLAY_NAME} LIKE '%.m4a')"
+            selectionArgs = arrayOf("%/Music/영상MP3/%")
+        }
 
         try {
             val cursor = context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                null,
-                null,
+                selection,
+                selectionArgs,
                 sortOrder
             )
 
@@ -144,6 +162,10 @@ object Mp3StorageHelper {
                 val durCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val sizeCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
                 val dateCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val dataCol = it.getColumnIndex(MediaStore.Audio.Media.DATA)
+                val relCol = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    it.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                } else -1
 
                 while (it.moveToNext()) {
                     val id = it.getLong(idCol)
@@ -151,22 +173,25 @@ object Mp3StorageHelper {
                     val duration = it.getLong(durCol)
                     val size = it.getLong(sizeCol)
                     val dateAdded = it.getLong(dateCol)
+                    val dataPath = if (dataCol != -1) it.getString(dataCol) ?: "" else ""
+                    val relPath = if (relCol != -1) it.getString(relCol) ?: "" else ""
+
+                    // 2중 검증: 경로에 반드시 '영상MP3'가 포함되어 있는지 확인
+                    val isInsideSubFolder = relPath.contains(SUB_FOLDER) || dataPath.contains("/$SUB_FOLDER/")
+                    if (!isInsideSubFolder) continue
 
                     val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
 
-                    // 파일명이 .mp3로 끝나는 항목 수집
-                    if (name.endsWith(".mp3", ignoreCase = true) || name.endsWith(".m4a", ignoreCase = true)) {
-                        list.add(
-                            Mp3Item(
-                                id = id,
-                                title = name.removeSuffix(".mp3").removeSuffix(".m4a"),
-                                uri = uri,
-                                durationMs = duration,
-                                sizeBytes = size,
-                                dateAddedSec = dateAdded
-                            )
+                    list.add(
+                        Mp3Item(
+                            id = id,
+                            title = name.removeSuffix(".mp3").removeSuffix(".m4a"),
+                            uri = uri,
+                            durationMs = duration,
+                            sizeBytes = size,
+                            dateAddedSec = dateAdded
                         )
-                    }
+                    )
                 }
             }
         } catch (e: Exception) {

@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="8dp">
+
+    <!-- 1. 최상단 헤더: [영상MP3 by 피피] & [추출 완료 N곡] -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tvHeaderTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="[영상MP3 by 피피]"
+            android:textColor="@color/on_surface"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvHeaderCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="[추출 0곡]"
+            android:textColor="@color/secondary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 초슬림 진행상태 프로그레스 바 -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="10dp"
+        android:indeterminate="false"
+        android:max="100"
+        android:progress="0"
+        android:progressTint="@color/secondary"
+        android:visibility="gone" />
+
+    <!-- 2. 선택 탭: [🔗 유튜브 링크] / [📁 동영상 파일] -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnTabYoutube"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:backgroundTint="@color/primary"
+            android:text="🔗 유튜브 링크"
+            android:textColor="@color/on_surface"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnTabLocal"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:backgroundTint="@color/surface_variant"
+            android:text="📁 동영상 파일"
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 3-A. 유튜브 링크 입력 영역 -->
+    <LinearLayout
+        android:id="@+id/layoutYoutubeInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@color/surface"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etYoutubeUrl"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="유튜브 링크 입력 (youtu.be/...)"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:textColor="@color/on_surface"
+                android:textColorHint="@color/on_surface_secondary"
+                android:textSize="14sp" />
+
+            <ImageButton
+                android:id="@+id/btnClearUrl"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:tint="@color/on_surface_secondary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnPasteUrl"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:backgroundTint="@color/surface_variant"
+                android:text="📋 붙여넣기"
+                android:textColor="@color/on_surface"
+                android:textSize="12sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- 깔끔한 크기의 추출 버튼 -->
+            <Button
+                android:id="@+id/btnExtractYoutube"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:backgroundTint="@color/primary"
+                android:text="🎵 MP3 추출"
+                android:textColor="@color/on_surface"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 3-B. 로컬 동영상 파일 선택 영역 -->
+    <LinearLayout
+        android:id="@+id/layoutLocalInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@color/surface"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btnSelectLocalVideo"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:backgroundTint="@color/surface_variant"
+            android:text="🎬 스마트폰에서 동영상 파일 선택"
+            android:textColor="@color/on_surface"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvSelectedVideoName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:text="선택된 동영상 없음"
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnExtractLocal"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:backgroundTint="@color/primary"
+                android:text="🎵 MP3 추출"
+                android:textColor="@color/on_surface"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 상태 알림 텍스트 -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:textColor="@color/secondary"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <!-- 4. 하단 목록 헤더 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📂 내 추출 음악 (Music/영상MP3)"
+            android:textColor="@color/on_surface"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnRefresh"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_rotate"
+            android:tint="@color/on_surface_secondary" />
+    </LinearLayout>
+
+    <!-- 추출된 MP3 목록 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvMp3List"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="16dp" />
+
+        <TextView
+            android:id="@+id/tvEmptyMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:text="추출된 MP3 파일이 없습니다.\n상단에서 유튜브 링크나 영상을 넣어 추출해 보세요! 🎵"
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+</LinearLayout>

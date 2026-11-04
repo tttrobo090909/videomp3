@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#2E7D32</color>
+    <color name="primary_variant">#1B5E20</color>
+    <color name="secondary">#81C784</color>
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    <color name="surface_variant">#2A2A2A</color>
+    <color name="on_surface">#FFFFFF</color>
+    <color name="on_surface_secondary">#B0B0B0</color>
+    <color name="samsung_blue">#0381FE</color>
+    <color name="delete_red">#E53935</color>
+</resources>

@@ -4,9 +4,9 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.net.Uri
-import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -17,6 +17,7 @@ object LocalVideoExtractor {
 
     /**
      * 로컬 동영상 파일에서 오디오 트랙을 100% 무손실로 추출하여 [Music/영상MP3]에 저장합니다.
+     * 삼성 갤러리 [앨범] 등 가상 Uri 환경에서도 100% 정상 추출되도록 캐시 스트림 복사 파이프라인을 사용합니다.
      */
     suspend fun extractAudioFromLocalVideo(
         context: Context,
@@ -24,27 +25,35 @@ object LocalVideoExtractor {
         fileName: String,
         onProgress: (percent: Int, statusText: String) -> Unit
     ): Result<Uri> = withContext(Dispatchers.IO) {
+        val tempInputFile = File(context.cacheDir, "input_vid_${System.currentTimeMillis()}.tmp")
         val tempOutputFile = File(context.cacheDir, "extracted_${System.currentTimeMillis()}.m4a")
         val extractor = MediaExtractor()
         var muxer: MediaMuxer? = null
-        var pfd: ParcelFileDescriptor? = null
 
         try {
             withContext(Dispatchers.Main) {
-                onProgress(10, "분석중")
+                onProgress(5, "준비중")
             }
 
-            pfd = try {
-                context.contentResolver.openFileDescriptor(videoUri, "r")
-            } catch (e: Exception) {
-                null
+            // 1. 삼성 갤러리 [앨범] 등 가상 Provider Uri의 C++ 바인더 접근 실패(0초 오류)를 원천 차단하기 위해 임시 캐시로 스트림 복사
+            context.contentResolver.openInputStream(videoUri)?.use { input ->
+                tempInputFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            } ?: run {
+                return@withContext Result.failure(Exception("동영상 파일을 열 수 없습니다."))
             }
 
-            if (pfd != null) {
-                extractor.setDataSource(pfd.fileDescriptor)
-            } else {
-                extractor.setDataSource(context, videoUri, null)
+            if (tempInputFile.length() == 0L) {
+                return@withContext Result.failure(Exception("동영상 데이터가 비어 있습니다."))
             }
+
+            withContext(Dispatchers.Main) {
+                onProgress(15, "분석중")
+            }
+
+            // 2. 물리 파일 경로로 MediaExtractor 연결 (100% Seek 가능 & 무손실)
+            extractor.setDataSource(tempInputFile.absolutePath)
 
             var audioTrackIndex = -1
             var audioFormat: MediaFormat? = null
@@ -64,6 +73,23 @@ object LocalVideoExtractor {
             }
 
             extractor.selectTrack(audioTrackIndex)
+
+            // 원본 오디오 길이(ms) 사전 측정
+            var trackDurationUs = if (audioFormat.containsKey(MediaFormat.KEY_DURATION)) {
+                audioFormat.getLong(MediaFormat.KEY_DURATION)
+            } else 0L
+
+            if (trackDurationUs <= 0L) {
+                try {
+                    val mmr = MediaMetadataRetriever()
+                    mmr.setDataSource(tempInputFile.absolutePath)
+                    val durStr = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    trackDurationUs = (durStr?.toLongOrNull() ?: 0L) * 1000L
+                    mmr.release()
+                } catch (ignored: Exception) {}
+            }
+
+            val durationMs = if (trackDurationUs > 0) trackDurationUs / 1000L else 0L
 
             muxer = MediaMuxer(tempOutputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             val muxerAudioTrack = muxer.addTrack(audioFormat)
@@ -117,6 +143,7 @@ object LocalVideoExtractor {
                     rawTitle = cleanTitle,
                     inputStream = input,
                     totalBytes = tempOutputFile.length(),
+                    durationMs = durationMs,
                     mimeType = "audio/mp4",
                     extension = ".m4a",
                     onProgress = { onProgress(85 + (it * 15 / 100), "저장중") }
@@ -124,6 +151,7 @@ object LocalVideoExtractor {
             }
 
             tempOutputFile.delete()
+            tempInputFile.delete()
 
             if (savedUri != null) {
                 withContext(Dispatchers.Main) {
@@ -138,11 +166,12 @@ object LocalVideoExtractor {
             e.printStackTrace()
             try { muxer?.release() } catch (ex: Exception) {}
             try { extractor.release() } catch (ex: Exception) {}
-            try { pfd?.close() } catch (ex: Exception) {}
             tempOutputFile.delete()
+            tempInputFile.delete()
             Result.failure(e)
         } finally {
-            try { pfd?.close() } catch (ex: Exception) {}
+            tempOutputFile.delete()
+            tempInputFile.delete()
         }
     }
 }

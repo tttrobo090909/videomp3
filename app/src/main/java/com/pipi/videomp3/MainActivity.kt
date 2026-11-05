@@ -61,11 +61,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvHeaderStatus: TextView
 
     private lateinit var btnRecord: TextView
-    private lateinit var btnFile: Button
+    private lateinit var btnFile: TextView
     private lateinit var btnLinkPaste: TextView
     private lateinit var etYoutubeUrl: EditText
     private lateinit var btnClearUrl: ImageButton
-    private lateinit var btnStartExtract: Button
+    private lateinit var btnStartExtract: TextView
 
     // 전용 플레이어 뷰들
     private lateinit var layoutPlayer: LinearLayout
@@ -73,17 +73,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sbPlayerProgress: SeekBar
     private lateinit var tvPlayerTime: TextView
 
-    // 플레이어 조작 버튼 (좌측 모드 3버튼, 우측 제어 6버튼)
-    private lateinit var btnModeRepeatOne: Button
-    private lateinit var btnModeRepeatAll: Button
-    private lateinit var btnModeShuffle: Button
+    // 플레이어 조작 버튼 (좌측 모드 3버튼, 우측 제어 5버튼)
+    private lateinit var btnModeRepeatOne: ImageButton
+    private lateinit var btnModeRepeatAll: ImageButton
+    private lateinit var btnModeShuffle: ImageButton
 
-    private lateinit var btnPlayerPrevTrack: Button
-    private lateinit var btnPlayerRewind5: Button
-    private lateinit var btnPlayerPlay: Button
-    private lateinit var btnPlayerStop: Button
-    private lateinit var btnPlayerForward5: Button
-    private lateinit var btnPlayerNextTrack: Button
+    private lateinit var btnPlayerPrevTrack: TextView
+    private lateinit var btnPlayerRewind5: TextView
+    private lateinit var btnPlayerPlayStop: TextView
+    private lateinit var btnPlayerForward5: TextView
+    private lateinit var btnPlayerNextTrack: TextView
 
     // 일반 모드 헤더
     private lateinit var layoutNormalHeader: LinearLayout
@@ -220,8 +219,7 @@ class MainActivity : AppCompatActivity() {
 
         btnPlayerPrevTrack = findViewById(R.id.btnPlayerPrevTrack)
         btnPlayerRewind5 = findViewById(R.id.btnPlayerRewind5)
-        btnPlayerPlay = findViewById(R.id.btnPlayerPlay)
-        btnPlayerStop = findViewById(R.id.btnPlayerStop)
+        btnPlayerPlayStop = findViewById(R.id.btnPlayerPlayStop)
         btnPlayerForward5 = findViewById(R.id.btnPlayerForward5)
         btnPlayerNextTrack = findViewById(R.id.btnPlayerNextTrack)
 
@@ -362,7 +360,7 @@ class MainActivity : AppCompatActivity() {
             updateModeButtonsUi()
         }
 
-        // 우측 재생 조작계 6버튼: 이전 / <5초 / 재생 / 정지 / >5초 / 다음
+        // 우측 재생 조작계 5버튼: 이전 / ⏪5s / ▶⏹ / 5s⏩ / 다음
         btnPlayerPrevTrack.setOnClickListener {
             playPreviousTrack()
         }
@@ -375,12 +373,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnPlayerPlay.setOnClickListener {
-            resumeOrPlayCurrentTrack()
-        }
-
-        btnPlayerStop.setOnClickListener {
-            stopPlayback()
+        btnPlayerPlayStop.setOnClickListener {
+            if (mediaPlayer?.isPlaying == true) {
+                stopPlayback()
+            } else {
+                resumeOrPlayCurrentTrack()
+            }
         }
 
         btnPlayerForward5.setOnClickListener {
@@ -458,7 +456,8 @@ class MainActivity : AppCompatActivity() {
                 start()
             }
 
-            btnPlayerPlay.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.highlight_sky_blue))
+            btnPlayerPlayStop.text = "⏹"
+            btnPlayerPlayStop.setTextColor(Color.parseColor("#4FC3F7"))
             sbPlayerProgress.max = mediaPlayer?.duration ?: 0
             sbPlayerProgress.progress = 0
             updatePlayerTimeDisplay(0, mediaPlayer?.duration ?: 0)
@@ -481,7 +480,8 @@ class MainActivity : AppCompatActivity() {
             return
         } else if (mediaPlayer != null) {
             mediaPlayer?.start()
-            btnPlayerPlay.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.highlight_sky_blue))
+            btnPlayerPlayStop.text = "⏹"
+            btnPlayerPlayStop.setTextColor(Color.parseColor("#4FC3F7"))
         } else if (currentPlayingItem != null) {
             playTrack(currentPlayingItem!!)
         } else {
@@ -603,43 +603,27 @@ class MainActivity : AppCompatActivity() {
             it.release()
         }
         mediaPlayer = null
-        btnPlayerPlay.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.surface_variant))
+        btnPlayerPlayStop.text = "▶"
+        btnPlayerPlayStop.setTextColor(Color.WHITE)
         sbPlayerProgress.progress = 0
         mp3Adapter.setPlayingItemId(null)
     }
 
     private fun updateModeButtonsUi() {
-        val activeBg = ContextCompat.getColor(this, R.color.highlight_sky_blue)
-        val inactiveBg = ContextCompat.getColor(this, R.color.surface_variant)
-        val activeText = Color.WHITE
-        val inactiveText = ContextCompat.getColor(this, R.color.on_surface_secondary)
+        val activeColor = Color.parseColor("#4FC3F7")
+        val inactiveColor = Color.WHITE
 
-        // 🔂 1곡반복
-        if (playbackMode == PlaybackMode.REPEAT_ONE) {
-            btnModeRepeatOne.backgroundTintList = ColorStateList.valueOf(activeBg)
-            btnModeRepeatOne.setTextColor(activeText)
-        } else {
-            btnModeRepeatOne.backgroundTintList = ColorStateList.valueOf(inactiveBg)
-            btnModeRepeatOne.setTextColor(inactiveText)
-        }
+        btnModeRepeatOne.imageTintList = ColorStateList.valueOf(
+            if (playbackMode == PlaybackMode.REPEAT_ONE) activeColor else inactiveColor
+        )
 
-        // 🔁 전체반복
-        if (playbackMode == PlaybackMode.REPEAT_ALL) {
-            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(activeBg)
-            btnModeRepeatAll.setTextColor(activeText)
-        } else {
-            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(inactiveBg)
-            btnModeRepeatAll.setTextColor(inactiveText)
-        }
+        btnModeRepeatAll.imageTintList = ColorStateList.valueOf(
+            if (playbackMode == PlaybackMode.REPEAT_ALL) activeColor else inactiveColor
+        )
 
-        // 🔀 랜덤반복
-        if (playbackMode == PlaybackMode.SHUFFLE) {
-            btnModeShuffle.backgroundTintList = ColorStateList.valueOf(activeBg)
-            btnModeShuffle.setTextColor(activeText)
-        } else {
-            btnModeShuffle.backgroundTintList = ColorStateList.valueOf(inactiveBg)
-            btnModeShuffle.setTextColor(inactiveText)
-        }
+        btnModeShuffle.imageTintList = ColorStateList.valueOf(
+            if (playbackMode == PlaybackMode.SHUFFLE) activeColor else inactiveColor
+        )
     }
 
     private fun enterSelectionMode(initialItem: Mp3Item?) {
@@ -680,6 +664,7 @@ class MainActivity : AppCompatActivity() {
                     val timeStr = String.format(Locale.getDefault(), "%02d:%02d", m, s)
                     val count = mp3Adapter.itemCount
                     tvHeaderStatus.text = "[녹음중 $timeStr] [${count}곡]"
+                    tvHeaderStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.secondary))
                 } else {
                     btnRecord.text = "♤"
                     btnRecord.setTextColor(Color.parseColor("#888888"))
@@ -775,6 +760,7 @@ class MainActivity : AppCompatActivity() {
                 onProgress = { percent, statusText ->
                     val count = mp3Adapter.itemCount
                     tvHeaderStatus.text = "[$statusText] [${count}곡]"
+                    tvHeaderStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.secondary))
                 }
             )
 
@@ -801,6 +787,7 @@ class MainActivity : AppCompatActivity() {
                 onProgress = { percent, statusText ->
                     val count = mp3Adapter.itemCount
                     tvHeaderStatus.text = "[$statusText] [${count}곡]"
+                    tvHeaderStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.secondary))
                 }
             )
 
@@ -819,8 +806,11 @@ class MainActivity : AppCompatActivity() {
     private fun setExtractingState(extracting: Boolean) {
         isExtracting = extracting
         btnFile.isEnabled = !extracting
+        btnFile.alpha = if (extracting) 0.5f else 1.0f
         btnStartExtract.isEnabled = !extracting
+        btnStartExtract.alpha = if (extracting) 0.5f else 1.0f
         btnRecord.isEnabled = !extracting
+        btnRecord.alpha = if (extracting) 0.5f else 1.0f
         if (!extracting) {
             updateStatusText()
         }
@@ -849,6 +839,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatusText() {
         val count = mp3Adapter.itemCount
+        tvHeaderStatus.setTextColor(ContextCompat.getColor(this, R.color.secondary))
 
         if (isRecording) {
             return

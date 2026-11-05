@@ -37,6 +37,7 @@ object Mp3StorageHelper {
         rawTitle: String,
         inputStream: InputStream,
         totalBytes: Long,
+        durationMs: Long = 0L,
         mimeType: String = "audio/mpeg",
         extension: String = ".mp3",
         onProgress: (Int) -> Unit
@@ -51,6 +52,9 @@ object Mp3StorageHelper {
                 put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
                 put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
                 put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/$SUB_FOLDER")
+                if (durationMs > 0) {
+                    put(MediaStore.Audio.Media.DURATION, durationMs)
+                }
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
             }
 
@@ -92,6 +96,9 @@ object Mp3StorageHelper {
 
                     contentValues.clear()
                     contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
+                    if (durationMs > 0) {
+                        contentValues.put(MediaStore.Audio.Media.DURATION, durationMs)
+                    }
                     resolver.update(uri, contentValues, null, null)
 
                     return uri

@@ -14,7 +14,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.pipi.videomp3.MainActivity
@@ -169,12 +168,8 @@ class RecordingService : Service() {
             }
             timerHandler.post(timerRunnable!!)
             stateListener?.invoke(true, 0)
-
-            Toast.makeText(this, "백그라운드 녹음이 시작되었습니다. ♠ 버튼이나 알림창에서 저장할 수 있습니다.", Toast.LENGTH_SHORT).show()
-
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "녹음을 시작하지 못했습니다: ${e.message}", Toast.LENGTH_SHORT).show()
             cleanup()
             stopSelf()
         }
@@ -225,10 +220,8 @@ class RecordingService : Service() {
 
                 withContext(Dispatchers.Main) {
                     if (savedUri != null) {
-                        Toast.makeText(applicationContext, "Music/영상MP3에 녹음이 저장되었습니다! 🎙️ ($finalTitle)", Toast.LENGTH_LONG).show()
                         onRecordingSaved?.invoke(finalTitle, true)
                     } else {
-                        Toast.makeText(applicationContext, "녹음 파일 저장에 실패했습니다.", Toast.LENGTH_SHORT).show()
                         onRecordingSaved?.invoke(finalTitle, false)
                     }
                     cleanup()

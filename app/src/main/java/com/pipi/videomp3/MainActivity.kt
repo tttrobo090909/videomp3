@@ -1,6 +1,7 @@
 package com.pipi.videomp3
 
 import android.content.ClipboardManager
+import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.Cursor
@@ -8,6 +9,8 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
@@ -16,7 +19,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -31,6 +33,9 @@ import com.pipi.videomp3.util.YouTubeExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -64,10 +69,11 @@ class MainActivity : AppCompatActivity() {
     ) { uri ->
         if (uri != null) {
             selectedLocalVideoUri = uri
-            selectedLocalVideoName = queryFileName(uri)
-            etYoutubeUrl.setText("")
+            selectedLocalVideoName = queryRealFileName(uri)
+            val cleanTitle = selectedLocalVideoName.substringBeforeLast(".")
+            etYoutubeUrl.setText(cleanTitle)
+            etYoutubeUrl.setSelection(etYoutubeUrl.text.length)
             updateStatusText()
-            Toast.makeText(this, "동영상 선택 완료! '⚡ 추출 시작'을 누르면 변환됩니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -80,8 +86,6 @@ class MainActivity : AppCompatActivity() {
 
         if (recordGranted) {
             startVoiceRecording()
-        } else {
-            Toast.makeText(this, "녹음 기능을 사용하려면 마이크 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -135,12 +139,8 @@ class MainActivity : AppCompatActivity() {
         rvMp3List = findViewById(R.id.rvMp3List)
         tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
 
-        // 녹음 버튼 초기 상태: ♤ (짙은 회색)
-        btnRecord.text = "♤"
-        btnRecord.setTextColor(Color.parseColor("#888888"))
-
         mp3Adapter = Mp3Adapter(this) {
-            updateStatusText()
+            loadMp3Files()
         }
 
         rvMp3List.layoutManager = LinearLayoutManager(this)
@@ -148,7 +148,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        // [♤ / ♠ 녹음] 버튼 터치 -> 녹음 시작 / 중지
+        // 녹음 버튼 (♤ / ♠)
         btnRecord.setOnClickListener {
             if (isRecording) {
                 stopVoiceRecording(save = true)
@@ -157,12 +157,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // [📁 파일] 버튼 클릭 -> 폰에서 동영상 선택
+        // 파일 선택 버튼
         btnFile.setOnClickListener {
             selectVideoLauncher.launch("video/*")
         }
 
-        // 🔗 링크 아이콘 터치 -> 클립보드 내용 자동 붙여넣기
+        // 링크 아이콘 (🔗) 누르면 클립보드 링크 즉시 붙여넣기
         btnLinkPaste.setOnClickListener {
             pasteFromClipboard()
         }
@@ -177,16 +177,15 @@ class MainActivity : AppCompatActivity() {
 
         // 유튜브 링크 입력창 텍스트 변경 감지 -> 실시간 [유튜브 선택중] 반영
         etYoutubeUrl.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                if (!isExtracting && !isRecording) {
-                    updateStatusText()
-                }
-            }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                btnClearUrl.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
+                updateStatusText()
+            }
+            override fun afterTextChanged(s: Editable?) {}
         })
 
-        // [⚡ 추출 시작] 버튼 클릭 -> 파일 또는 유튜브 링크 자동 판별 추출
+        // 추출 시작 버튼 (⚡)
         btnStartExtract.setOnClickListener {
             startExtractionFlow()
         }
@@ -194,7 +193,6 @@ class MainActivity : AppCompatActivity() {
         // 목록 새로고침 버튼
         btnRefresh.setOnClickListener {
             loadMp3Files()
-            Toast.makeText(this, "Music/영상MP3 목록을 새로고침했습니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -266,10 +264,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startVoiceRecording() {
-        if (isExtracting) {
-            Toast.makeText(this, "추출 작업 중에는 녹음할 수 없습니다.", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (isExtracting) return
         RecordingService.startRecording(this)
     }
 
@@ -278,18 +273,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startExtractionFlow() {
-        if (isExtracting) {
-            Toast.makeText(this, "현재 추출 작업이 진행 중입니다.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (isRecording) {
-            Toast.makeText(this, "녹음 중에는 추출할 수 없습니다. 먼저 녹음을 마쳐주세요.", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (isExtracting) return
+        if (isRecording) return
 
         // 1순위: 파일이 선택되어 있으면 로컬 동영상 음원 추출 실행!
         if (selectedLocalVideoUri != null) {
-            startLocalVideoExtraction()
+            val userTitle = etYoutubeUrl.text.toString().trim()
+            val finalName = if (userTitle.isNotBlank() && !userTitle.startsWith("http")) {
+                "$userTitle.mp4"
+            } else {
+                selectedLocalVideoName
+            }
+            startLocalVideoExtraction(finalName)
             return
         }
 
@@ -299,8 +294,6 @@ class MainActivity : AppCompatActivity() {
             startYoutubeExtraction(url)
             return
         }
-
-        Toast.makeText(this, "유튜브 링크를 붙여넣거나 [파일] 버튼을 눌러 영상을 선택해 주세요.", Toast.LENGTH_SHORT).show()
     }
 
     private fun startYoutubeExtraction(url: String) {
@@ -319,18 +312,14 @@ class MainActivity : AppCompatActivity() {
             setExtractingState(false)
 
             if (result.isSuccess) {
-                Toast.makeText(this@MainActivity, "Music/영상MP3 폴더에 저장되었습니다! 🎵", Toast.LENGTH_LONG).show()
                 etYoutubeUrl.setText("")
                 loadMp3Files()
-            } else {
-                val err = result.exceptionOrNull()?.message ?: "알 수 없는 오류"
-                Toast.makeText(this@MainActivity, "추출 실패: $err", Toast.LENGTH_LONG).show()
             }
             updateStatusText()
         }
     }
 
-    private fun startLocalVideoExtraction() {
+    private fun startLocalVideoExtraction(fileNameToUse: String) {
         val uri = selectedLocalVideoUri ?: return
 
         lifecycleScope.launch {
@@ -339,7 +328,7 @@ class MainActivity : AppCompatActivity() {
             val result = LocalVideoExtractor.extractAudioFromLocalVideo(
                 context = this@MainActivity,
                 videoUri = uri,
-                fileName = selectedLocalVideoName,
+                fileName = fileNameToUse,
                 onProgress = { percent, statusText ->
                     val count = mp3Adapter.itemCount
                     tvHeaderStatus.text = "[$statusText] [${count}곡]"
@@ -349,13 +338,10 @@ class MainActivity : AppCompatActivity() {
             setExtractingState(false)
 
             if (result.isSuccess) {
-                Toast.makeText(this@MainActivity, "Music/영상MP3 폴더에 저장되었습니다! 🎵", Toast.LENGTH_LONG).show()
                 selectedLocalVideoUri = null
                 selectedLocalVideoName = ""
+                etYoutubeUrl.setText("")
                 loadMp3Files()
-            } else {
-                val err = result.exceptionOrNull()?.message ?: "알 수 없는 오류"
-                Toast.makeText(this@MainActivity, "추출 실패: $err", Toast.LENGTH_LONG).show()
             }
             updateStatusText()
         }
@@ -421,10 +407,7 @@ class MainActivity : AppCompatActivity() {
                 etYoutubeUrl.setText(text.trim())
                 etYoutubeUrl.setSelection(etYoutubeUrl.text.length)
                 updateStatusText()
-                Toast.makeText(this, "링크를 붙여넣었습니다.", Toast.LENGTH_SHORT).show()
             }
-        } else {
-            Toast.makeText(this, "클립보드에 복사된 내용이 없습니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -448,17 +431,94 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun queryFileName(uri: Uri): String {
-        var name = "영상_${System.currentTimeMillis()}.mp4"
-        val cursor: Cursor? = contentResolver.query(uri, null, null, null, null)
-        cursor?.use {
-            if (it.moveToFirst()) {
-                val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (index != -1) {
-                    name = it.getString(index)
+    /**
+     * 안드로이드 Content URI에서 미디어 관리 번호(ID)가 아닌 실제 원본 동영상 파일명을 역추적하여 가져옵니다.
+     */
+    private fun queryRealFileName(uri: Uri): String {
+        var resultName: String? = null
+
+        // 1. DocumentsContract 또는 MediaStore URI에서 Media ID 역추적
+        try {
+            var mediaId: Long? = null
+            if (DocumentsContract.isDocumentUri(this, uri)) {
+                val docId = DocumentsContract.getDocumentId(uri)
+                if (docId.contains(":")) {
+                    val idPart = docId.substringAfter(":")
+                    mediaId = idPart.toLongOrNull()
+                }
+            } else if (uri.toString().contains("video/media/")) {
+                mediaId = uri.lastPathSegment?.toLongOrNull()
+            }
+
+            if (mediaId != null) {
+                val videoUri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, mediaId)
+                val projection = arrayOf(
+                    MediaStore.Video.Media.DISPLAY_NAME,
+                    MediaStore.Video.Media.TITLE,
+                    MediaStore.Video.Media.DATA
+                )
+                contentResolver.query(videoUri, projection, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val dispCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
+                        val titleCol = cursor.getColumnIndex(MediaStore.Video.Media.TITLE)
+                        val dataCol = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
+
+                        val disp = if (dispCol != -1) cursor.getString(dispCol) else null
+                        val title = if (titleCol != -1) cursor.getString(titleCol) else null
+                        val data = if (dataCol != -1) cursor.getString(dataCol) else null
+
+                        val candidate = when {
+                            !disp.isNullOrBlank() && !disp.substringBeforeLast(".").all { it.isDigit() } -> disp
+                            !data.isNullOrBlank() && !File(data).name.substringBeforeLast(".").all { it.isDigit() } -> File(data).name
+                            !title.isNullOrBlank() && !title.all { it.isDigit() } -> "$title.mp4"
+                            else -> disp ?: (if (data != null) File(data).name else null) ?: title
+                        }
+                        if (!candidate.isNullOrBlank()) {
+                            resultName = candidate
+                        }
+                    }
                 }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        return name
+
+        // 2. URI 자체에서 OpenableColumns.DISPLAY_NAME 및 DATA 직접 조회
+        if (resultName == null || resultName!!.substringBeforeLast(".").all { it.isDigit() }) {
+            try {
+                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameCol = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        val dataCol = cursor.getColumnIndex("_data")
+                        val titleCol = cursor.getColumnIndex("title")
+
+                        val name = if (nameCol != -1) cursor.getString(nameCol) else null
+                        val data = if (dataCol != -1) cursor.getString(dataCol) else null
+                        val title = if (titleCol != -1) cursor.getString(titleCol) else null
+
+                        val candidate = when {
+                            !name.isNullOrBlank() && !name.substringBeforeLast(".").all { it.isDigit() } -> name
+                            !data.isNullOrBlank() && !File(data).name.substringBeforeLast(".").all { it.isDigit() } -> File(data).name
+                            !title.isNullOrBlank() && !title.all { it.isDigit() } -> "$title.mp4"
+                            else -> name ?: (if (data != null) File(data).name else null) ?: title
+                        }
+                        if (!candidate.isNullOrBlank()) {
+                            resultName = candidate
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 3. 만약 여전히 null이거나 순수 숫자라면 '내영상_날짜_시간'으로 생성
+        val finalClean = resultName?.substringBeforeLast(".") ?: ""
+        return if (resultName.isNullOrBlank() || finalClean.isBlank() || finalClean.all { it.isDigit() }) {
+            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA).format(Date())
+            "내영상_$timeStamp.mp4"
+        } else {
+            resultName!!
+        }
     }
 }

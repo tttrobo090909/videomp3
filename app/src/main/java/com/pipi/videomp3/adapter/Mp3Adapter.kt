@@ -10,7 +10,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.pipi.videomp3.R
@@ -127,7 +126,6 @@ class Mp3Adapter(
                 }
 
             } catch (e: Exception) {
-                Toast.makeText(context, "재생할 수 없습니다: ${e.message}", Toast.LENGTH_SHORT).show()
                 stopPlayback()
             }
         }
@@ -149,7 +147,6 @@ class Mp3Adapter(
                 try {
                     context.startActivity(fallbackIntent)
                 } catch (e2: Exception) {
-                    Toast.makeText(context, "음악을 재생할 수 있는 앱이 없습니다.", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -176,9 +173,6 @@ class Mp3Adapter(
                         notifyItemRemoved(position)
                         notifyItemRangeChanged(position, items.size)
                         onItemDeleted()
-                        Toast.makeText(context, "삭제되었습니다.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "삭제하지 못했습니다.", Toast.LENGTH_SHORT).show()
                     }
                 }
                 .setNegativeButton("취소", null)

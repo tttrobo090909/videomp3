@@ -211,12 +211,23 @@ object Mp3StorageHelper {
 
                     val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
 
+                    var finalDuration = duration
+                    if (finalDuration <= 0L) {
+                        try {
+                            val mmr = android.media.MediaMetadataRetriever()
+                            mmr.setDataSource(context, uri)
+                            val durStr = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                            finalDuration = durStr?.toLongOrNull() ?: 0L
+                            mmr.release()
+                        } catch (ignored: Exception) {}
+                    }
+
                     list.add(
                         Mp3Item(
                             id = id,
                             title = name.removeSuffix(".mp3").removeSuffix(".m4a"),
                             uri = uri,
-                            durationMs = duration,
+                            durationMs = finalDuration,
                             sizeBytes = size,
                             dateAddedSec = dateAdded
                         )

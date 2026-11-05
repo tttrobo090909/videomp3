@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/layoutMp3Row"
     android:layout_width="match_parent"
-    android:layout_height="48dp"
+    android:layout_height="44dp"
     android:layout_marginBottom="2dp"
     android:background="@color/surface"
     android:gravity="center_vertical"
@@ -10,20 +10,23 @@
     android:paddingStart="10dp"
     android:paddingEnd="10dp">
 
-    <!-- 0. 다중 선택 체크박스 (선택 모드일 때만 표시, 크기 축소 scale 0.8) -->
+    <!-- 0. 다중 선택 체크박스 (선택 모드일 때만 표시, 크기 고정으로 행 높이 변동 원천 차단) -->
     <CheckBox
         android:id="@+id/cbRowSelect"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_marginEnd="6dp"
-        android:buttonTint="@color/secondary"
-        android:scaleX="0.8"
-        android:scaleY="0.8"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="8dp"
+        android:buttonTint="@color/highlight_sky_blue"
         android:clickable="false"
         android:focusable="false"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:padding="0dp"
+        android:scaleX="0.85"
+        android:scaleY="0.85"
         android:visibility="gone" />
 
-    <!-- 1. 파일 제목 (누르면 재생/일시정지, 재생 중엔 파란색 글자, 길게 누르면 선택 모드, 길면 왼쪽으로 흐름) -->
+    <!-- 1. 파일 제목 (누르면 재생, 재생 중엔 파란 굵은 글자, 재생목록엔 밝은 하늘색 글자, 길면 왼쪽 흐름) -->
     <TextView
         android:id="@+id/tvMp3Title"
         android:layout_width="0dp"
@@ -48,28 +51,17 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
+        android:layout_marginEnd="6dp"
         android:text="00:00"
         android:textColor="@color/on_surface_secondary"
         android:textSize="11sp" />
 
-    <!-- 3. 녹색 삼성 뮤직으로 재생 버튼 (크기 70% 축소: 18dp) -->
-    <ImageButton
-        android:id="@+id/btnOpenSamsungMusic"
-        android:layout_width="18dp"
-        android:layout_height="18dp"
-        android:layout_marginStart="4dp"
-        android:background="?android:attr/selectableItemBackgroundBorderless"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_music_note"
-        android:tint="@color/secondary" />
-
-    <!-- 4. 공유 버튼 (크기 70% 축소: 18dp) -->
+    <!-- 3. 공유 버튼 (18dp) -->
     <ImageButton
         android:id="@+id/btnShare"
         android:layout_width="18dp"
         android:layout_height="18dp"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="4dp"
         android:background="?android:attr/selectableItemBackgroundBorderless"
         android:scaleType="fitCenter"
         android:src="@android:drawable/ic_menu_share"

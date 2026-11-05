@@ -31,7 +31,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="[완료] [0곡]"
-            android:textColor="@color/secondary"
+            android:textColor="@color/highlight_sky_blue"
             android:textSize="13sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -44,7 +44,7 @@
         android:layout_marginBottom="8dp"
         android:background="@color/divider_gray" />
 
-    <!-- 3. 추출 조작 영역: [♤/♠ 녹음] / [📁 파일] / [🔗 링크 입력창] / [⚡ 추출] (높이 42dp 일치) -->
+    <!-- 3. 추출 조작 영역: [♤/♠ 녹음] / [📁 파일] / [🔗 링크 입력창] / [⚡ 추출] (파일 버튼 기준 높이 42dp 완전 일치, 추출버튼 회색 통일) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="42dp"
@@ -65,7 +65,7 @@
             android:textColor="#888888"
             android:textSize="20sp" />
 
-        <!-- [📁 파일] 버튼 -->
+        <!-- [📁 파일] 버튼 (기준 높이) -->
         <Button
             android:id="@+id/btnFile"
             android:layout_width="wrap_content"
@@ -76,7 +76,9 @@
             android:minWidth="0dp"
             android:minHeight="0dp"
             android:paddingStart="10dp"
+            android:paddingTop="0dp"
             android:paddingEnd="10dp"
+            android:paddingBottom="0dp"
             android:text="📁 파일"
             android:textColor="@color/on_surface"
             android:textSize="12sp"
@@ -129,21 +131,23 @@
                 android:tint="@color/on_surface_secondary" />
         </LinearLayout>
 
-        <!-- [⚡ 추출] 버튼 -->
+        <!-- [⚡ 추출] 버튼 (회색 통일 & 번개 확대) -->
         <Button
             android:id="@+id/btnStartExtract"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:backgroundTint="@color/primary"
+            android:backgroundTint="@color/surface_variant"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:minWidth="0dp"
             android:minHeight="0dp"
             android:paddingStart="10dp"
+            android:paddingTop="0dp"
             android:paddingEnd="10dp"
+            android:paddingBottom="0dp"
             android:text="⚡ 추출"
             android:textColor="@color/on_surface"
-            android:textSize="12sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -155,7 +159,7 @@
         android:layout_marginBottom="8dp"
         android:background="@color/divider_gray" />
 
-    <!-- 5. 전용 플레이어 영역 (곡 제목 마퀴, 탐색바, 5초 앞뒤/재생, 3대 반복/랜덤 모드) -->
+    <!-- 5. 전용 플레이어 영역 (곡 제목 마퀴, 탐색바, 좌측 모드 3버튼, 우측 제어 6버튼) -->
     <LinearLayout
         android:id="@+id/layoutPlayer"
         android:layout_width="match_parent"
@@ -183,7 +187,7 @@
             android:textSize="13sp"
             android:textStyle="bold" />
 
-        <!-- 진행바(SeekBar) + 재생시간 -->
+        <!-- 진행바(SeekBar) + 재생시간 (좌우 10dp 여백 축소 적용) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -195,35 +199,37 @@
                 android:id="@+id/sbPlayerProgress"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
                 android:layout_weight="1"
                 android:max="100"
                 android:paddingStart="0dp"
                 android:paddingEnd="0dp"
                 android:progress="0"
-                android:progressTint="@color/secondary"
-                android:thumbTint="@color/secondary" />
+                android:progressTint="@color/highlight_sky_blue"
+                android:thumbTint="@color/highlight_sky_blue" />
 
             <TextView
                 android:id="@+id/tvPlayerTime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
                 android:text="00:00 / 00:00"
                 android:textColor="@color/on_surface_secondary"
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- 플레이어 컨트롤 버튼들 -->
+        <!-- 플레이어 컨트롤 버튼들 (좌측: 모드 3버튼 / 우측: 재생 제어 6버튼) -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="32dp"
+            android:layout_height="28dp"
             android:layout_marginTop="6dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- ⏪ 5초 -->
+            <!-- [좌측 모드 버튼 그룹] -->
+            <!-- 🔂 1곡반복 -->
             <Button
-                android:id="@+id/btnPlayerRewind5"
+                android:id="@+id/btnModeRepeatOne"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:backgroundTint="@color/surface_variant"
@@ -231,82 +237,30 @@
                 android:insetBottom="0dp"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="⏪ 5초"
-                android:textColor="@color/on_surface"
-                android:textSize="11sp" />
-
-            <!-- ▶ / ⏸ 재생/일시정지 -->
-            <Button
-                android:id="@+id/btnPlayerPlayPause"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_marginStart="4dp"
-                android:backgroundTint="@color/primary"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="▶ 재생"
-                android:textColor="@color/on_surface"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <!-- ⏩ 5초 -->
-            <Button
-                android:id="@+id/btnPlayerForward5"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_marginStart="4dp"
-                android:backgroundTint="@color/surface_variant"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="⏩ 5초"
-                android:textColor="@color/on_surface"
-                android:textSize="11sp" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
+                android:paddingStart="5dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="5dp"
+                android:paddingBottom="0dp"
+                android:text="🔂 1곡"
+                android:textColor="@color/on_surface_secondary"
+                android:textSize="10sp" />
 
             <!-- 🔁 전체반복 -->
             <Button
                 android:id="@+id/btnModeRepeatAll"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
+                android:layout_marginStart="2dp"
                 android:backgroundTint="@color/surface_variant"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
+                android:paddingStart="5dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="5dp"
+                android:paddingBottom="0dp"
                 android:text="🔁 전체"
-                android:textColor="@color/on_surface_secondary"
-                android:textSize="10sp" />
-
-            <!-- 🔂 1곡반복 -->
-            <Button
-                android:id="@+id/btnModeRepeatOne"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_marginStart="3dp"
-                android:backgroundTint="@color/surface_variant"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
-                android:text="🔂 1곡"
                 android:textColor="@color/on_surface_secondary"
                 android:textSize="10sp" />
 
@@ -315,16 +269,139 @@
                 android:id="@+id/btnModeShuffle"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:layout_marginStart="3dp"
+                android:layout_marginStart="2dp"
                 android:backgroundTint="@color/surface_variant"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
+                android:paddingStart="5dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="5dp"
+                android:paddingBottom="0dp"
                 android:text="🔀 랜덤"
                 android:textColor="@color/on_surface_secondary"
+                android:textSize="10sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- [우측 재생 조작계 그룹: 이전 / <5초 / 재생 / 정지 / >5초 / 다음] -->
+            <!-- ⏮ 이전곡 -->
+            <Button
+                android:id="@+id/btnPlayerPrevTrack"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:backgroundTint="@color/surface_variant"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="4dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="0dp"
+                android:text="⏮"
+                android:textColor="@color/on_surface"
+                android:textSize="10sp" />
+
+            <!-- ⏪ 5초 -->
+            <Button
+                android:id="@+id/btnPlayerRewind5"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="2dp"
+                android:backgroundTint="@color/surface_variant"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="4dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="0dp"
+                android:text="⏪5s"
+                android:textColor="@color/on_surface"
+                android:textSize="10sp" />
+
+            <!-- ▶ 재생 -->
+            <Button
+                android:id="@+id/btnPlayerPlay"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="2dp"
+                android:backgroundTint="@color/highlight_sky_blue"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="6dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="0dp"
+                android:text="▶"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <!-- ⏹ 정지 -->
+            <Button
+                android:id="@+id/btnPlayerStop"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="2dp"
+                android:backgroundTint="@color/surface_variant"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="5dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="5dp"
+                android:paddingBottom="0dp"
+                android:text="⏹"
+                android:textColor="@color/on_surface"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <!-- ⏩ 5초 -->
+            <Button
+                android:id="@+id/btnPlayerForward5"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="2dp"
+                android:backgroundTint="@color/surface_variant"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="4dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="0dp"
+                android:text="5s⏩"
+                android:textColor="@color/on_surface"
+                android:textSize="10sp" />
+
+            <!-- ⏭ 다음곡 -->
+            <Button
+                android:id="@+id/btnPlayerNextTrack"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="2dp"
+                android:backgroundTint="@color/surface_variant"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="4dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="0dp"
+                android:text="⏭"
+                android:textColor="@color/on_surface"
                 android:textSize="10sp" />
         </LinearLayout>
     </LinearLayout>
@@ -383,7 +460,7 @@
             android:id="@+id/cbSelectAll"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:buttonTint="@color/secondary"
+            android:buttonTint="@color/highlight_sky_blue"
             android:scaleX="0.85"
             android:scaleY="0.85"
             android:text="전체선택"
@@ -397,7 +474,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="0개"
-            android:textColor="@color/secondary"
+            android:textColor="@color/highlight_sky_blue"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -418,13 +495,13 @@
             android:textSize="11sp"
             android:textStyle="bold" />
 
-        <!-- 재생목록 추가 버튼 -->
+        <!-- 재생목록 추가 버튼 (하늘색 계열) -->
         <Button
             android:id="@+id/btnAddToPlaylist"
             android:layout_width="wrap_content"
             android:layout_height="28dp"
             android:layout_marginStart="6dp"
-            android:backgroundTint="@color/primary"
+            android:backgroundTint="@color/highlight_sky_blue"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:minWidth="0dp"

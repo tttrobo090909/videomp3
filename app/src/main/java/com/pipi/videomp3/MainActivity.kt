@@ -4,6 +4,7 @@ import android.app.RecoverableSecurityException
 import android.content.ClipboardManager
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -71,12 +72,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvPlayerTitle: TextView
     private lateinit var sbPlayerProgress: SeekBar
     private lateinit var tvPlayerTime: TextView
-    private lateinit var btnPlayerRewind5: Button
-    private lateinit var btnPlayerPlayPause: Button
-    private lateinit var btnPlayerForward5: Button
-    private lateinit var btnModeRepeatAll: Button
+
+    // 플레이어 조작 버튼 (좌측 모드 3버튼, 우측 제어 6버튼)
     private lateinit var btnModeRepeatOne: Button
+    private lateinit var btnModeRepeatAll: Button
     private lateinit var btnModeShuffle: Button
+
+    private lateinit var btnPlayerPrevTrack: Button
+    private lateinit var btnPlayerRewind5: Button
+    private lateinit var btnPlayerPlay: Button
+    private lateinit var btnPlayerStop: Button
+    private lateinit var btnPlayerForward5: Button
+    private lateinit var btnPlayerNextTrack: Button
 
     // 일반 모드 헤더
     private lateinit var layoutNormalHeader: LinearLayout
@@ -113,17 +120,24 @@ class MainActivity : AppCompatActivity() {
     private var selectedLocalVideoUri: Uri? = null
     private var selectedLocalVideoName: String = ""
 
-    // 비디오 파일 선택 런처
-    private val selectVideoLauncher = registerForActivityResult(
+    // 비디오 파일 선택 런처 (컬렉션/앨범 '이 기기에서' 우선 호출)
+    private val selectVideoPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val uri = result.data?.data
+            if (uri != null) {
+                onVideoSelected(uri)
+            }
+        }
+    }
+
+    // 시스템 기본 파일 탐색기 백업 런처
+    private val selectVideoFallbackLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            selectedLocalVideoUri = uri
-            selectedLocalVideoName = queryRealFileName(uri)
-            val cleanTitle = selectedLocalVideoName.substringBeforeLast(".")
-            etYoutubeUrl.setText(cleanTitle)
-            etYoutubeUrl.setSelection(etYoutubeUrl.text.length)
-            updateStatusText()
+            onVideoSelected(uri)
         }
     }
 
@@ -199,12 +213,17 @@ class MainActivity : AppCompatActivity() {
         tvPlayerTitle = findViewById(R.id.tvPlayerTitle)
         sbPlayerProgress = findViewById(R.id.sbPlayerProgress)
         tvPlayerTime = findViewById(R.id.tvPlayerTime)
-        btnPlayerRewind5 = findViewById(R.id.btnPlayerRewind5)
-        btnPlayerPlayPause = findViewById(R.id.btnPlayerPlayPause)
-        btnPlayerForward5 = findViewById(R.id.btnPlayerForward5)
-        btnModeRepeatAll = findViewById(R.id.btnModeRepeatAll)
+
         btnModeRepeatOne = findViewById(R.id.btnModeRepeatOne)
+        btnModeRepeatAll = findViewById(R.id.btnModeRepeatAll)
         btnModeShuffle = findViewById(R.id.btnModeShuffle)
+
+        btnPlayerPrevTrack = findViewById(R.id.btnPlayerPrevTrack)
+        btnPlayerRewind5 = findViewById(R.id.btnPlayerRewind5)
+        btnPlayerPlay = findViewById(R.id.btnPlayerPlay)
+        btnPlayerStop = findViewById(R.id.btnPlayerStop)
+        btnPlayerForward5 = findViewById(R.id.btnPlayerForward5)
+        btnPlayerNextTrack = findViewById(R.id.btnPlayerNextTrack)
 
         layoutNormalHeader = findViewById(R.id.layoutNormalHeader)
         btnEnterSelectMode = findViewById(R.id.btnEnterSelectMode)
@@ -249,9 +268,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 파일 선택 버튼
+        // 파일 선택 버튼 (컬렉션 '이 기기에서' 폴더 선택기 호출)
         btnFile.setOnClickListener {
-            selectVideoLauncher.launch("video/*")
+            val pickIntent = Intent(Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).apply {
+                type = "video/*"
+            }
+            try {
+                selectVideoPickerLauncher.launch(pickIntent)
+            } catch (e: Exception) {
+                selectVideoFallbackLauncher.launch("video/*")
+            }
         }
 
         // 링크 아이콘 (🔗) 누르면 클립보드 링크 즉시 붙여넣기
@@ -315,18 +341,46 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 아래로 당겨서 새로고침 (SwipeRefreshLayout)
-        swipeRefreshLayout.setColorSchemeColors(ContextCompat.getColor(this, R.color.secondary))
+        swipeRefreshLayout.setColorSchemeColors(ContextCompat.getColor(this, R.color.highlight_sky_blue))
         swipeRefreshLayout.setOnRefreshListener {
             loadMp3Files()
         }
 
-        // 플레이어 조작 버튼들
+        // 플레이어 조작 버튼들 (좌측 모드 3버튼)
+        btnModeRepeatOne.setOnClickListener {
+            playbackMode = if (playbackMode == PlaybackMode.REPEAT_ONE) PlaybackMode.NORMAL else PlaybackMode.REPEAT_ONE
+            updateModeButtonsUi()
+        }
+
+        btnModeRepeatAll.setOnClickListener {
+            playbackMode = if (playbackMode == PlaybackMode.REPEAT_ALL) PlaybackMode.NORMAL else PlaybackMode.REPEAT_ALL
+            updateModeButtonsUi()
+        }
+
+        btnModeShuffle.setOnClickListener {
+            playbackMode = if (playbackMode == PlaybackMode.SHUFFLE) PlaybackMode.NORMAL else PlaybackMode.SHUFFLE
+            updateModeButtonsUi()
+        }
+
+        // 우측 재생 조작계 6버튼: 이전 / <5초 / 재생 / 정지 / >5초 / 다음
+        btnPlayerPrevTrack.setOnClickListener {
+            playPreviousTrack()
+        }
+
         btnPlayerRewind5.setOnClickListener {
             mediaPlayer?.let { player ->
                 val newPos = max(0, player.currentPosition - 5000)
                 player.seekTo(newPos)
                 updatePlayerTimeDisplay(newPos, player.duration)
             }
+        }
+
+        btnPlayerPlay.setOnClickListener {
+            resumeOrPlayCurrentTrack()
+        }
+
+        btnPlayerStop.setOnClickListener {
+            stopPlayback()
         }
 
         btnPlayerForward5.setOnClickListener {
@@ -337,25 +391,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnPlayerPlayPause.setOnClickListener {
-            togglePlayPause()
+        btnPlayerNextTrack.setOnClickListener {
+            playNextTrack()
         }
 
-        btnModeRepeatAll.setOnClickListener {
-            playbackMode = if (playbackMode == PlaybackMode.REPEAT_ALL) PlaybackMode.NORMAL else PlaybackMode.REPEAT_ALL
-            updateModeButtonsUi()
-        }
-
-        btnModeRepeatOne.setOnClickListener {
-            playbackMode = if (playbackMode == PlaybackMode.REPEAT_ONE) PlaybackMode.NORMAL else PlaybackMode.REPEAT_ONE
-            updateModeButtonsUi()
-        }
-
-        btnModeShuffle.setOnClickListener {
-            playbackMode = if (playbackMode == PlaybackMode.SHUFFLE) PlaybackMode.NORMAL else PlaybackMode.SHUFFLE
-            updateModeButtonsUi()
-        }
-
+        // 탐색바 터치 리스너
         sbPlayerProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
@@ -391,6 +431,17 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    // 동영상 파일 선택 시 처리: 파일명 규칙 '영상_yyMMdd_HHmm' (초 제외) 적용
+    private fun onVideoSelected(uri: Uri) {
+        selectedLocalVideoUri = uri
+        val timeStamp = SimpleDateFormat("yyMMdd_HHmm", Locale.KOREA).format(Date())
+        val defaultTargetName = "영상_$timeStamp"
+        selectedLocalVideoName = "$defaultTargetName.mp4"
+        etYoutubeUrl.setText(defaultTargetName)
+        etYoutubeUrl.setSelection(etYoutubeUrl.text.length)
+        updateStatusText()
+    }
+
     // 전용 플레이어 재생 로직
     private fun playTrack(item: Mp3Item) {
         stopPlayback()
@@ -407,7 +458,7 @@ class MainActivity : AppCompatActivity() {
                 start()
             }
 
-            btnPlayerPlayPause.text = "⏸ 일시정지"
+            btnPlayerPlay.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.highlight_sky_blue))
             sbPlayerProgress.max = mediaPlayer?.duration ?: 0
             sbPlayerProgress.progress = 0
             updatePlayerTimeDisplay(0, mediaPlayer?.duration ?: 0)
@@ -424,20 +475,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun togglePlayPause() {
+    private fun resumeOrPlayCurrentTrack() {
         if (mediaPlayer?.isPlaying == true) {
-            mediaPlayer?.pause()
-            btnPlayerPlayPause.text = "▶ 재생"
+            // 이미 재생 중이면 유지
+            return
         } else if (mediaPlayer != null) {
             mediaPlayer?.start()
-            btnPlayerPlayPause.text = "⏸ 일시정지"
+            btnPlayerPlay.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.highlight_sky_blue))
         } else if (currentPlayingItem != null) {
             playTrack(currentPlayingItem!!)
         } else {
-            val all = mp3Adapter.getAllItems()
-            if (all.isNotEmpty()) {
-                playTrack(all[0])
+            val activeList = getActivePlaylist()
+            if (activeList.isNotEmpty()) {
+                playTrack(activeList[0])
             }
+        }
+    }
+
+    private fun playPreviousTrack() {
+        val activeList = getActivePlaylist()
+        if (activeList.isEmpty()) return
+        val currentIndex = activeList.indexOfFirst { it.id == currentPlayingItem?.id }
+        val prevIndex = if (currentIndex > 0) currentIndex - 1 else activeList.size - 1
+        playTrack(activeList[prevIndex])
+    }
+
+    private fun playNextTrack() {
+        val activeList = getActivePlaylist()
+        if (activeList.isEmpty()) return
+        if (playbackMode == PlaybackMode.SHUFFLE && activeList.size > 1) {
+            val nextItem = activeList.filter { it.id != currentPlayingItem?.id }.random()
+            playTrack(nextItem)
+        } else {
+            val currentIndex = activeList.indexOfFirst { it.id == currentPlayingItem?.id }
+            val nextIndex = if (currentIndex != -1) (currentIndex + 1) % activeList.size else 0
+            playTrack(activeList[nextIndex])
         }
     }
 
@@ -531,25 +603,16 @@ class MainActivity : AppCompatActivity() {
             it.release()
         }
         mediaPlayer = null
-        btnPlayerPlayPause.text = "▶ 재생"
+        btnPlayerPlay.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.surface_variant))
         sbPlayerProgress.progress = 0
         mp3Adapter.setPlayingItemId(null)
     }
 
     private fun updateModeButtonsUi() {
-        val activeBg = ContextCompat.getColor(this, R.color.primary)
+        val activeBg = ContextCompat.getColor(this, R.color.highlight_sky_blue)
         val inactiveBg = ContextCompat.getColor(this, R.color.surface_variant)
         val activeText = Color.WHITE
         val inactiveText = ContextCompat.getColor(this, R.color.on_surface_secondary)
-
-        // 🔁 전체반복
-        if (playbackMode == PlaybackMode.REPEAT_ALL) {
-            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(activeBg)
-            btnModeRepeatAll.setTextColor(activeText)
-        } else {
-            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(inactiveBg)
-            btnModeRepeatAll.setTextColor(inactiveText)
-        }
 
         // 🔂 1곡반복
         if (playbackMode == PlaybackMode.REPEAT_ONE) {
@@ -558,6 +621,15 @@ class MainActivity : AppCompatActivity() {
         } else {
             btnModeRepeatOne.backgroundTintList = ColorStateList.valueOf(inactiveBg)
             btnModeRepeatOne.setTextColor(inactiveText)
+        }
+
+        // 🔁 전체반복
+        if (playbackMode == PlaybackMode.REPEAT_ALL) {
+            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(activeBg)
+            btnModeRepeatAll.setTextColor(activeText)
+        } else {
+            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(inactiveBg)
+            btnModeRepeatAll.setTextColor(inactiveText)
         }
 
         // 🔀 랜덤반복
@@ -677,9 +749,10 @@ class MainActivity : AppCompatActivity() {
         if (selectedLocalVideoUri != null) {
             val userTitle = etYoutubeUrl.text.toString().trim()
             val finalName = if (userTitle.isNotBlank() && !userTitle.startsWith("http")) {
-                "$userTitle.mp4"
+                if (userTitle.endsWith(".mp4", ignoreCase = true)) userTitle else "$userTitle.mp4"
             } else {
-                selectedLocalVideoName
+                val timeStamp = SimpleDateFormat("yyMMdd_HHmm", Locale.KOREA).format(Date())
+                "영상_$timeStamp.mp4"
             }
             startLocalVideoExtraction(finalName)
             return
@@ -872,91 +945,6 @@ class MainActivity : AppCompatActivity() {
                 exitSelectionMode()
                 loadMp3Files()
             }
-        }
-    }
-
-    private fun queryRealFileName(uri: Uri): String {
-        var resultName: String? = null
-
-        try {
-            var mediaId: Long? = null
-            if (DocumentsContract.isDocumentUri(this, uri)) {
-                val docId = DocumentsContract.getDocumentId(uri)
-                if (docId.contains(":")) {
-                    val idPart = docId.substringAfter(":")
-                    mediaId = idPart.toLongOrNull()
-                }
-            } else if (uri.toString().contains("video/media/")) {
-                mediaId = uri.lastPathSegment?.toLongOrNull()
-            }
-
-            if (mediaId != null) {
-                val videoUri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, mediaId)
-                val projection = arrayOf(
-                    MediaStore.Video.Media.DISPLAY_NAME,
-                    MediaStore.Video.Media.TITLE,
-                    MediaStore.Video.Media.DATA
-                )
-                contentResolver.query(videoUri, projection, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val dispCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
-                        val titleCol = cursor.getColumnIndex(MediaStore.Video.Media.TITLE)
-                        val dataCol = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
-
-                        val disp = if (dispCol != -1) cursor.getString(dispCol) else null
-                        val title = if (titleCol != -1) cursor.getString(titleCol) else null
-                        val data = if (dataCol != -1) cursor.getString(dataCol) else null
-
-                        val candidate = when {
-                            !disp.isNullOrBlank() && !disp.substringBeforeLast(".").all { it.isDigit() } -> disp
-                            !data.isNullOrBlank() && !File(data).name.substringBeforeLast(".").all { it.isDigit() } -> File(data).name
-                            !title.isNullOrBlank() && !title.all { it.isDigit() } -> "$title.mp4"
-                            else -> disp ?: (if (data != null) File(data).name else null) ?: title
-                        }
-                        if (!candidate.isNullOrBlank()) {
-                            resultName = candidate
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        if (resultName == null || resultName!!.substringBeforeLast(".").all { it.isDigit() }) {
-            try {
-                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val nameCol = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        val dataCol = cursor.getColumnIndex("_data")
-                        val titleCol = cursor.getColumnIndex("title")
-
-                        val name = if (nameCol != -1) cursor.getString(nameCol) else null
-                        val data = if (dataCol != -1) cursor.getString(dataCol) else null
-                        val title = if (titleCol != -1) cursor.getString(titleCol) else null
-
-                        val candidate = when {
-                            !name.isNullOrBlank() && !name.substringBeforeLast(".").all { it.isDigit() } -> name
-                            !data.isNullOrBlank() && !File(data).name.substringBeforeLast(".").all { it.isDigit() } -> File(data).name
-                            !title.isNullOrBlank() && !title.all { it.isDigit() } -> "$title.mp4"
-                            else -> name ?: (if (data != null) File(data).name else null) ?: title
-                        }
-                        if (!candidate.isNullOrBlank()) {
-                            resultName = candidate
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        val finalClean = resultName?.substringBeforeLast(".") ?: ""
-        return if (resultName.isNullOrBlank() || finalClean.isBlank() || finalClean.all { it.isDigit() }) {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA).format(Date())
-            "내영상_$timeStamp.mp4"
-        } else {
-            resultName!!
         }
     }
 }

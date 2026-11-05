@@ -102,7 +102,6 @@ class Mp3Adapter(
         private val cbSelect: CheckBox = itemView.findViewById(R.id.cbRowSelect)
         private val tvTitle: TextView = itemView.findViewById(R.id.tvMp3Title)
         private val tvDuration: TextView = itemView.findViewById(R.id.tvDuration)
-        private val btnOpenSamsung: ImageButton = itemView.findViewById(R.id.btnOpenSamsungMusic)
         private val btnShare: ImageButton = itemView.findViewById(R.id.btnShare)
 
         fun bind(item: Mp3Item, position: Int) {
@@ -115,7 +114,6 @@ class Mp3Adapter(
                 val isSelected = selectedIds.contains(item.id)
                 cbSelect.isChecked = isSelected
 
-                btnOpenSamsung.visibility = View.GONE
                 btnShare.visibility = View.GONE
 
                 if (isSelected) {
@@ -137,14 +135,13 @@ class Mp3Adapter(
 
             } else {
                 cbSelect.visibility = View.GONE
-                btnOpenSamsung.visibility = View.VISIBLE
                 btnShare.visibility = View.VISIBLE
                 itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.surface))
 
                 // 색상 규칙:
                 // 1) 재생 중인 파일: 파란색 굵은 글씨 (#0381FE, bold)
-                // 2) 재생 목록에 있는 파일: 하늘색 글씨 (#29B6F6, normal)
-                // 3) 일반 파일: 기본 흰색 (#FFFFFF)
+                // 2) 재생 목록에 있는 파일: 밝고 화사한 하늘색 글씨 (#4FC3F7, normal)
+                // 3) 일반 파일: 기본 흰색 (#FFFFFF, normal)
                 val isCurrentPlaying = (item.id == playingItemId)
                 val isInPlaylist = playlistIds.contains(item.id)
 
@@ -152,7 +149,7 @@ class Mp3Adapter(
                     tvTitle.setTextColor(Color.parseColor("#0381FE"))
                     tvTitle.setTypeface(null, Typeface.BOLD)
                 } else if (isInPlaylist) {
-                    tvTitle.setTextColor(Color.parseColor("#29B6F6"))
+                    tvTitle.setTextColor(Color.parseColor("#4FC3F7"))
                     tvTitle.setTypeface(null, Typeface.NORMAL)
                 } else {
                     tvTitle.setTextColor(ContextCompat.getColor(context, R.color.on_surface))
@@ -172,10 +169,6 @@ class Mp3Adapter(
                 tvTitle.setOnLongClickListener(longClickListener)
                 itemView.setOnLongClickListener(longClickListener)
 
-                btnOpenSamsung.setOnClickListener {
-                    openInSamsungMusic(item)
-                }
-
                 btnShare.setOnClickListener {
                     shareMp3File(item)
                 }
@@ -190,27 +183,6 @@ class Mp3Adapter(
             }
             notifyItemChanged(adapterPosition)
             onSelectionChanged(selectedIds.size, items.size)
-        }
-
-        private fun openInSamsungMusic(item: Mp3Item) {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(item.uri, "audio/*")
-                setPackage("com.sec.android.app.music")
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            }
-
-            try {
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(item.uri, "audio/*")
-                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                }
-                try {
-                    context.startActivity(fallbackIntent)
-                } catch (e2: Exception) {
-                }
-            }
         }
 
         private fun shareMp3File(item: Mp3Item) {

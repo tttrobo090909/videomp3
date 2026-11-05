@@ -166,14 +166,8 @@ class Mp3Adapter(
                 .setTitle("MP3 파일 삭제")
                 .setMessage("'${item.title}' 파일을 정말 삭제할까요?")
                 .setPositiveButton("삭제") { _, _ ->
-                    val success = Mp3StorageHelper.deleteMp3File(context, item)
-                    if (success) {
-                        if (position == playingItemPosition) stopPlayback()
-                        items.removeAt(position)
-                        notifyItemRemoved(position)
-                        notifyItemRangeChanged(position, items.size)
-                        onItemDeleted()
-                    }
+                    if (position == playingItemPosition) stopPlayback()
+                    (context as? MainActivity)?.requestDeleteMp3(item)
                 }
                 .setNegativeButton("취소", null)
                 .show()

@@ -1,5 +1,6 @@
 package com.pipi.videomp3
 
+import android.app.RecoverableSecurityException
 import android.content.ClipboardManager
 import android.content.ContentUris
 import android.content.Context
@@ -19,6 +20,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -94,6 +96,15 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         loadMp3Files()
+    }
+
+    // 안드로이드 10+ 미디어 삭제 권한 요청 런처
+    private val deleteRequestLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            loadMp3Files()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -428,6 +439,42 @@ class MainActivity : AppCompatActivity() {
 
         if (needed.isNotEmpty()) {
             requestStoragePermissionLauncher.launch(needed.toTypedArray())
+        }
+    }
+
+    /**
+     * 안드로이드 Scoped Storage 권한을 고려한 안전한 파일 삭제
+     */
+    fun requestDeleteMp3(item: com.pipi.videomp3.model.Mp3Item) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var deleted = false
+            try {
+                val rows = contentResolver.delete(item.uri, null, null)
+                deleted = rows > 0
+            } catch (securityException: SecurityException) {
+                withContext(Dispatchers.Main) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        try {
+                            val pi = MediaStore.createDeleteRequest(contentResolver, listOf(item.uri))
+                            deleteRequestLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        val recoverable = securityException as? RecoverableSecurityException
+                        if (recoverable != null) {
+                            deleteRequestLauncher.launch(IntentSenderRequest.Builder(recoverable.userAction.actionIntent.intentSender).build())
+                        }
+                    }
+                }
+                return@launch
+            }
+
+            if (deleted) {
+                withContext(Dispatchers.Main) {
+                    loadMp3Files()
+                }
+            }
         }
     }
 

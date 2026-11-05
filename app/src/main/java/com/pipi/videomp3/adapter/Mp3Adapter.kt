@@ -177,7 +177,7 @@ class Mp3Adapter(
             } else {
                 selectedIds.add(item.id)
             }
-            notifyItemChanged(bindingAdapterPosition)
+            notifyItemChanged(adapterPosition)
             onSelectionChanged(selectedIds.size, items.size)
         }
 

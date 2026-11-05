@@ -11,8 +11,8 @@ android {
         applicationId "com.pipi.videomp3"
         minSdk 24
         targetSdk 34
-        versionCode 8
-        versionName "3.4_1105_1730"
+        versionCode 9
+        versionName "3.5_1105_1820"
     }
 
     buildTypes {

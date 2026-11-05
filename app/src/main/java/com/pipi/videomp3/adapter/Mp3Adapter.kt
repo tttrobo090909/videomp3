@@ -1,6 +1,5 @@
 package com.pipi.videomp3.adapter
 
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -8,22 +7,26 @@ import android.media.MediaPlayer
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.pipi.videomp3.R
 import com.pipi.videomp3.model.Mp3Item
-import com.pipi.videomp3.util.Mp3StorageHelper
 import java.util.Locale
 
 class Mp3Adapter(
     private val context: Context,
-    private val onDeleteRequested: (Mp3Item) -> Unit,
-    private val onItemDeleted: () -> Unit
+    private val onSelectionChanged: (selectedCount: Int, totalCount: Int) -> Unit,
+    private val onStartSelectionMode: (initialItem: Mp3Item) -> Unit
 ) : RecyclerView.Adapter<Mp3Adapter.Mp3ViewHolder>() {
 
     private val items = mutableListOf<Mp3Item>()
+    private val selectedIds = mutableSetOf<Long>()
+    var isSelectionMode = false
+        private set
+
     private var mediaPlayer: MediaPlayer? = null
     private var playingItemPosition: Int = -1
 
@@ -31,7 +34,42 @@ class Mp3Adapter(
         stopPlayback()
         items.clear()
         items.addAll(newItems)
+        val currentIds = items.map { it.id }.toSet()
+        selectedIds.retainAll(currentIds)
         notifyDataSetChanged()
+        if (isSelectionMode) {
+            onSelectionChanged(selectedIds.size, items.size)
+        }
+    }
+
+    fun enterSelectionMode(initialItem: Mp3Item? = null) {
+        isSelectionMode = true
+        stopPlayback()
+        selectedIds.clear()
+        initialItem?.let { selectedIds.add(it.id) }
+        notifyDataSetChanged()
+        onSelectionChanged(selectedIds.size, items.size)
+    }
+
+    fun exitSelectionMode() {
+        isSelectionMode = false
+        selectedIds.clear()
+        notifyDataSetChanged()
+        onSelectionChanged(0, items.size)
+    }
+
+    fun selectAll(select: Boolean) {
+        if (!isSelectionMode) return
+        selectedIds.clear()
+        if (select) {
+            selectedIds.addAll(items.map { it.id })
+        }
+        notifyDataSetChanged()
+        onSelectionChanged(selectedIds.size, items.size)
+    }
+
+    fun getSelectedItems(): List<Mp3Item> {
+        return items.filter { selectedIds.contains(it.id) }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Mp3ViewHolder {
@@ -59,6 +97,7 @@ class Mp3Adapter(
     }
 
     inner class Mp3ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val cbSelect: CheckBox = itemView.findViewById(R.id.cbRowSelect)
         private val tvTitle: TextView = itemView.findViewById(R.id.tvMp3Title)
         private val tvDuration: TextView = itemView.findViewById(R.id.tvDuration)
         private val btnOpenSamsung: ImageButton = itemView.findViewById(R.id.btnOpenSamsungMusic)
@@ -67,47 +106,79 @@ class Mp3Adapter(
         fun bind(item: Mp3Item, position: Int) {
             tvTitle.text = item.title
             tvTitle.isSelected = true
-
             tvDuration.text = formatTime(item.durationMs)
 
-            val isCurrentPlaying = (position == playingItemPosition && mediaPlayer != null && mediaPlayer!!.isPlaying)
+            if (isSelectionMode) {
+                cbSelect.visibility = View.VISIBLE
+                val isSelected = selectedIds.contains(item.id)
+                cbSelect.isChecked = isSelected
 
-            // 재생 중인 곡은 글자색 파란색(#0381FE), 멈춘 곡은 흰색
-            if (isCurrentPlaying) {
-                tvTitle.setTextColor(Color.parseColor("#0381FE"))
-            } else {
-                tvTitle.setTextColor(ContextCompat.getColor(context, R.color.on_surface))
-            }
+                btnOpenSamsung.visibility = View.GONE
+                btnShare.visibility = View.GONE
 
-            // 파일 제목 클릭 -> 재생 / 일시정지 토글
-            tvTitle.setOnClickListener {
-                if (isCurrentPlaying) {
-                    stopPlayback()
+                if (isSelected) {
+                    itemView.setBackgroundColor(Color.parseColor("#263238"))
                 } else {
-                    startPlayback(item, position)
+                    itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.surface))
+                }
+
+                tvTitle.setTextColor(ContextCompat.getColor(context, R.color.on_surface))
+
+                val toggleListener = View.OnClickListener {
+                    toggle(item)
+                }
+                itemView.setOnClickListener(toggleListener)
+                tvTitle.setOnClickListener(toggleListener)
+                itemView.setOnLongClickListener(null)
+                tvTitle.setOnLongClickListener(null)
+
+            } else {
+                cbSelect.visibility = View.GONE
+                btnOpenSamsung.visibility = View.VISIBLE
+                btnShare.visibility = View.VISIBLE
+                itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.surface))
+
+                val isCurrentPlaying = (position == playingItemPosition && mediaPlayer != null && mediaPlayer!!.isPlaying)
+                if (isCurrentPlaying) {
+                    tvTitle.setTextColor(Color.parseColor("#0381FE"))
+                } else {
+                    tvTitle.setTextColor(ContextCompat.getColor(context, R.color.on_surface))
+                }
+
+                tvTitle.setOnClickListener {
+                    if (isCurrentPlaying) {
+                        stopPlayback()
+                    } else {
+                        startPlayback(item, position)
+                    }
+                }
+                itemView.setOnClickListener(null)
+
+                val longClickListener = View.OnLongClickListener {
+                    onStartSelectionMode(item)
+                    true
+                }
+                tvTitle.setOnLongClickListener(longClickListener)
+                itemView.setOnLongClickListener(longClickListener)
+
+                btnOpenSamsung.setOnClickListener {
+                    openInSamsungMusic(item)
+                }
+
+                btnShare.setOnClickListener {
+                    shareMp3File(item)
                 }
             }
+        }
 
-            // 1초 길게 누르면 삭제 기능
-            tvTitle.setOnLongClickListener {
-                confirmDelete(item, position)
-                true
+        private fun toggle(item: Mp3Item) {
+            if (selectedIds.contains(item.id)) {
+                selectedIds.remove(item.id)
+            } else {
+                selectedIds.add(item.id)
             }
-
-            itemView.setOnLongClickListener {
-                confirmDelete(item, position)
-                true
-            }
-
-            // 녹색 버튼 클릭 -> 삼성 뮤직으로 열기
-            btnOpenSamsung.setOnClickListener {
-                openInSamsungMusic(item)
-            }
-
-            // 공유 버튼
-            btnShare.setOnClickListener {
-                shareMp3File(item)
-            }
+            notifyItemChanged(bindingAdapterPosition)
+            onSelectionChanged(selectedIds.size, items.size)
         }
 
         private fun startPlayback(item: Mp3Item, position: Int) {
@@ -160,18 +231,6 @@ class Mp3Adapter(
                 flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
             context.startActivity(Intent.createChooser(shareIntent, "음악 파일 공유"))
-        }
-
-        private fun confirmDelete(item: Mp3Item, position: Int) {
-            AlertDialog.Builder(context)
-                .setTitle("MP3 파일 삭제")
-                .setMessage("'${item.title}' 파일을 정말 삭제할까요?")
-                .setPositiveButton("삭제") { _, _ ->
-                    if (position == playingItemPosition) stopPlayback()
-                    onDeleteRequested(item)
-                }
-                .setNegativeButton("취소", null)
-                .show()
         }
 
         private fun formatTime(ms: Long): String {

@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -17,9 +16,12 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -51,7 +53,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnClearUrl: ImageButton
     private lateinit var btnStartExtract: Button
 
+    // 일반 모드 헤더
+    private lateinit var layoutNormalHeader: LinearLayout
+    private lateinit var btnEnterSelectMode: TextView
     private lateinit var btnRefresh: ImageButton
+
+    // 다중 선택 모드 헤더
+    private lateinit var layoutSelectionHeader: LinearLayout
+    private lateinit var cbSelectAll: CheckBox
+    private lateinit var tvSelectedCount: TextView
+    private lateinit var btnDeleteSelected: Button
+    private lateinit var btnCancelSelection: TextView
+
     private lateinit var rvMp3List: RecyclerView
     private lateinit var tvEmptyMessage: TextView
 
@@ -103,6 +116,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
+            exitSelectionMode()
             loadMp3Files()
         }
     }
@@ -113,6 +127,7 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         setupListeners()
+        setupBackPressHandler()
         checkStoragePermissions()
         loadMp3Files()
     }
@@ -146,17 +161,26 @@ class MainActivity : AppCompatActivity() {
         btnClearUrl = findViewById(R.id.btnClearUrl)
         btnStartExtract = findViewById(R.id.btnStartExtract)
 
+        layoutNormalHeader = findViewById(R.id.layoutNormalHeader)
+        btnEnterSelectMode = findViewById(R.id.btnEnterSelectMode)
         btnRefresh = findViewById(R.id.btnRefresh)
+
+        layoutSelectionHeader = findViewById(R.id.layoutSelectionHeader)
+        cbSelectAll = findViewById(R.id.cbSelectAll)
+        tvSelectedCount = findViewById(R.id.tvSelectedCount)
+        btnDeleteSelected = findViewById(R.id.btnDeleteSelected)
+        btnCancelSelection = findViewById(R.id.btnCancelSelection)
+
         rvMp3List = findViewById(R.id.rvMp3List)
         tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
 
         mp3Adapter = Mp3Adapter(
             context = this,
-            onDeleteRequested = { item ->
-                requestDeleteMp3(item)
+            onSelectionChanged = { selectedCount, totalCount ->
+                updateSelectionUi(selectedCount, totalCount)
             },
-            onItemDeleted = {
-                loadMp3Files()
+            onStartSelectionMode = { initialItem ->
+                enterSelectionMode(initialItem)
             }
         )
 
@@ -211,6 +235,63 @@ class MainActivity : AppCompatActivity() {
         btnRefresh.setOnClickListener {
             loadMp3Files()
         }
+
+        // [선택] 버튼 클릭 -> 다중 선택 모드 진입
+        btnEnterSelectMode.setOnClickListener {
+            enterSelectionMode(null)
+        }
+
+        // 선택 모드 [취소] 버튼
+        btnCancelSelection.setOnClickListener {
+            exitSelectionMode()
+        }
+
+        // 전체 선택 체크박스
+        cbSelectAll.setOnCheckedChangeListener { _, isChecked ->
+            mp3Adapter.selectAll(isChecked)
+        }
+
+        // 선택 항목 삭제 버튼 (확인 팝업 없이 바로 시스템 권한/삭제 실행)
+        btnDeleteSelected.setOnClickListener {
+            requestDeleteSelectedMp3s()
+        }
+    }
+
+    private fun setupBackPressHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (mp3Adapter.isSelectionMode) {
+                    exitSelectionMode()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+    }
+
+    private fun enterSelectionMode(initialItem: com.pipi.videomp3.model.Mp3Item?) {
+        layoutNormalHeader.visibility = View.GONE
+        layoutSelectionHeader.visibility = View.VISIBLE
+        mp3Adapter.enterSelectionMode(initialItem)
+    }
+
+    private fun exitSelectionMode() {
+        layoutSelectionHeader.visibility = View.GONE
+        layoutNormalHeader.visibility = View.VISIBLE
+        mp3Adapter.exitSelectionMode()
+    }
+
+    private fun updateSelectionUi(selectedCount: Int, totalCount: Int) {
+        tvSelectedCount.text = "${selectedCount}개 선택됨"
+        btnDeleteSelected.isEnabled = selectedCount > 0
+        btnDeleteSelected.alpha = if (selectedCount > 0) 1.0f else 0.5f
+
+        cbSelectAll.setOnCheckedChangeListener(null)
+        cbSelectAll.isChecked = (totalCount > 0 && selectedCount == totalCount)
+        cbSelectAll.setOnCheckedChangeListener { _, isChecked ->
+            mp3Adapter.selectAll(isChecked)
+        }
     }
 
     private fun attachRecordingListeners() {
@@ -259,9 +340,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * 마이크 및 알림 권한 확인 후 녹음 시작
-     */
     private fun checkAndStartRecording() {
         val permissions = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -293,7 +371,6 @@ class MainActivity : AppCompatActivity() {
         if (isExtracting) return
         if (isRecording) return
 
-        // 1순위: 파일이 선택되어 있으면 로컬 동영상 음원 추출 실행!
         if (selectedLocalVideoUri != null) {
             val userTitle = etYoutubeUrl.text.toString().trim()
             val finalName = if (userTitle.isNotBlank() && !userTitle.startsWith("http")) {
@@ -305,7 +382,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 2순위: 유튜브 링크가 입력되어 있으면 유튜브 추출 실행!
         val url = etYoutubeUrl.text.toString().trim()
         if (url.isNotBlank() && (url.contains("youtu.be") || url.contains("youtube.com") || url.startsWith("http"))) {
             startYoutubeExtraction(url)
@@ -381,17 +457,14 @@ class MainActivity : AppCompatActivity() {
                 mp3Adapter.submitList(list)
                 updateStatusText()
                 tvEmptyMessage.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+                btnEnterSelectMode.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+                if (list.isEmpty() && mp3Adapter.isSelectionMode) {
+                    exitSelectionMode()
+                }
             }
         }
     }
 
-    /**
-     * 최상단 우측 상태 텍스트 갱신:
-     * - 평소 / 완료 시: [완료] [N곡]
-     * - 파일 선택 시: [동영상 선택중] [N곡]
-     * - 링크 입력 시: [유튜브 선택중] [N곡]
-     * - 추출 시: [추출중] [N곡] / [저장중] [N곡]
-     */
     private fun updateStatusText() {
         val count = mp3Adapter.itemCount
 
@@ -449,48 +522,58 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 안드로이드 Scoped Storage 권한을 고려한 안전한 파일 삭제
+     * 선택된 다중 MP3 파일 삭제 (앱 확인 팝업 없이 1단계로 시스템 권한 및 삭제 직행)
      */
-    fun requestDeleteMp3(item: com.pipi.videomp3.model.Mp3Item) {
+    private fun requestDeleteSelectedMp3s() {
+        val selectedItems = mp3Adapter.getSelectedItems()
+        if (selectedItems.isEmpty()) return
+
         lifecycleScope.launch(Dispatchers.IO) {
-            var deleted = false
-            try {
-                val rows = contentResolver.delete(item.uri, null, null)
-                deleted = rows > 0
-            } catch (securityException: SecurityException) {
-                withContext(Dispatchers.Main) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        try {
-                            val pi = MediaStore.createDeleteRequest(contentResolver, listOf(item.uri))
-                            deleteRequestLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        val recoverable = securityException as? RecoverableSecurityException
-                        if (recoverable != null) {
-                            deleteRequestLauncher.launch(IntentSenderRequest.Builder(recoverable.userAction.actionIntent.intentSender).build())
-                        }
+            val uris = selectedItems.map { it.uri }
+
+            // Android 11+ (API 30+): MediaStore.createDeleteRequest로 선택된 모든 파일을 묶어 한 번에 시스템 팝업 호출
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                try {
+                    val pi = MediaStore.createDeleteRequest(contentResolver, uris)
+                    withContext(Dispatchers.Main) {
+                        deleteRequestLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
                     }
+                    return@launch
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                return@launch
             }
 
-            if (deleted) {
-                withContext(Dispatchers.Main) {
-                    loadMp3Files()
+            // Android 10 이하 또는 직접 삭제 가능한 파일 처리
+            var securityException: SecurityException? = null
+            for (item in selectedItems) {
+                try {
+                    contentResolver.delete(item.uri, null, null)
+                } catch (se: SecurityException) {
+                    securityException = se
                 }
+            }
+
+            if (securityException != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val recoverable = securityException as? RecoverableSecurityException
+                if (recoverable != null) {
+                    withContext(Dispatchers.Main) {
+                        deleteRequestLauncher.launch(IntentSenderRequest.Builder(recoverable.userAction.actionIntent.intentSender).build())
+                    }
+                    return@launch
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                exitSelectionMode()
+                loadMp3Files()
             }
         }
     }
 
-    /**
-     * 안드로이드 Content URI에서 미디어 관리 번호(ID)가 아닌 실제 원본 동영상 파일명을 역추적하여 가져옵니다.
-     */
     private fun queryRealFileName(uri: Uri): String {
         var resultName: String? = null
 
-        // 1. DocumentsContract 또는 MediaStore URI에서 Media ID 역추적
         try {
             var mediaId: Long? = null
             if (DocumentsContract.isDocumentUri(this, uri)) {
@@ -536,7 +619,6 @@ class MainActivity : AppCompatActivity() {
             e.printStackTrace()
         }
 
-        // 2. URI 자체에서 OpenableColumns.DISPLAY_NAME 및 DATA 직접 조회
         if (resultName == null || resultName!!.substringBeforeLast(".").all { it.isDigit() }) {
             try {
                 contentResolver.query(uri, null, null, null, null)?.use { cursor ->
@@ -565,7 +647,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 3. 만약 여전히 null이거나 순수 숫자라면 '내영상_날짜_시간'으로 생성
         val finalClean = resultName?.substringBeforeLast(".") ?: ""
         return if (resultName.isNullOrBlank() || finalClean.isBlank() || finalClean.all { it.isDigit() }) {
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA).format(Date())

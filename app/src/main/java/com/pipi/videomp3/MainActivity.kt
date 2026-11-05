@@ -150,9 +150,15 @@ class MainActivity : AppCompatActivity() {
         rvMp3List = findViewById(R.id.rvMp3List)
         tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
 
-        mp3Adapter = Mp3Adapter(this) {
-            loadMp3Files()
-        }
+        mp3Adapter = Mp3Adapter(
+            context = this,
+            onDeleteRequested = { item ->
+                requestDeleteMp3(item)
+            },
+            onItemDeleted = {
+                loadMp3Files()
+            }
+        )
 
         rvMp3List.layoutManager = LinearLayoutManager(this)
         rvMp3List.adapter = mp3Adapter

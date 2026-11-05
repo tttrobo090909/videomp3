@@ -19,6 +19,7 @@ import java.util.Locale
 
 class Mp3Adapter(
     private val context: Context,
+    private val onDeleteRequested: (Mp3Item) -> Unit,
     private val onItemDeleted: () -> Unit
 ) : RecyclerView.Adapter<Mp3Adapter.Mp3ViewHolder>() {
 
@@ -167,7 +168,7 @@ class Mp3Adapter(
                 .setMessage("'${item.title}' 파일을 정말 삭제할까요?")
                 .setPositiveButton("삭제") { _, _ ->
                     if (position == playingItemPosition) stopPlayback()
-                    (context as? MainActivity)?.requestDeleteMp3(item)
+                    onDeleteRequested(item)
                 }
                 .setNegativeButton("취소", null)
                 .show()

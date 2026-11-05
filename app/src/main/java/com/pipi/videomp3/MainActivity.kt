@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -20,6 +22,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.IntentSenderRequest
@@ -29,18 +32,28 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.pipi.videomp3.adapter.Mp3Adapter
+import com.pipi.videomp3.model.Mp3Item
 import com.pipi.videomp3.service.RecordingService
 import com.pipi.videomp3.util.LocalVideoExtractor
 import com.pipi.videomp3.util.Mp3StorageHelper
 import com.pipi.videomp3.util.YouTubeExtractor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
+import kotlin.math.min
+
+enum class PlaybackMode {
+    NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE
+}
 
 class MainActivity : AppCompatActivity() {
 
@@ -53,22 +66,44 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnClearUrl: ImageButton
     private lateinit var btnStartExtract: Button
 
+    // 전용 플레이어 뷰들
+    private lateinit var layoutPlayer: LinearLayout
+    private lateinit var tvPlayerTitle: TextView
+    private lateinit var sbPlayerProgress: SeekBar
+    private lateinit var tvPlayerTime: TextView
+    private lateinit var btnPlayerRewind5: Button
+    private lateinit var btnPlayerPlayPause: Button
+    private lateinit var btnPlayerForward5: Button
+    private lateinit var btnModeRepeatAll: Button
+    private lateinit var btnModeRepeatOne: Button
+    private lateinit var btnModeShuffle: Button
+
     // 일반 모드 헤더
     private lateinit var layoutNormalHeader: LinearLayout
     private lateinit var btnEnterSelectMode: TextView
-    private lateinit var btnRefresh: ImageButton
 
     // 다중 선택 모드 헤더
     private lateinit var layoutSelectionHeader: LinearLayout
     private lateinit var cbSelectAll: CheckBox
     private lateinit var tvSelectedCount: TextView
     private lateinit var btnDeleteSelected: Button
+    private lateinit var btnAddToPlaylist: Button
     private lateinit var btnCancelSelection: TextView
 
+    // 목록 영역
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var rvMp3List: RecyclerView
     private lateinit var tvEmptyMessage: TextView
 
     private lateinit var mp3Adapter: Mp3Adapter
+
+    // 플레이어 상태 변수들
+    private var mediaPlayer: MediaPlayer? = null
+    private var currentPlayingItem: Mp3Item? = null
+    private var playbackMode = PlaybackMode.NORMAL
+    private var isUserTrackingSeekBar = false
+    private val playlistItemIds = mutableSetOf<Long>()
+    private var playerUpdateJob: Job? = null
 
     // 상태 변수들
     private var isExtracting = false
@@ -98,7 +133,6 @@ class MainActivity : AppCompatActivity() {
     ) { permissions ->
         val recordGranted = permissions[android.Manifest.permission.RECORD_AUDIO] == true ||
                 ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
         if (recordGranted) {
             startVoiceRecording()
         }
@@ -148,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         RecordingService.stateListener = null
         RecordingService.onRecordingSaved = null
-        mp3Adapter.stopPlayback()
+        stopPlayback()
     }
 
     private fun initViews() {
@@ -161,21 +195,36 @@ class MainActivity : AppCompatActivity() {
         btnClearUrl = findViewById(R.id.btnClearUrl)
         btnStartExtract = findViewById(R.id.btnStartExtract)
 
+        layoutPlayer = findViewById(R.id.layoutPlayer)
+        tvPlayerTitle = findViewById(R.id.tvPlayerTitle)
+        sbPlayerProgress = findViewById(R.id.sbPlayerProgress)
+        tvPlayerTime = findViewById(R.id.tvPlayerTime)
+        btnPlayerRewind5 = findViewById(R.id.btnPlayerRewind5)
+        btnPlayerPlayPause = findViewById(R.id.btnPlayerPlayPause)
+        btnPlayerForward5 = findViewById(R.id.btnPlayerForward5)
+        btnModeRepeatAll = findViewById(R.id.btnModeRepeatAll)
+        btnModeRepeatOne = findViewById(R.id.btnModeRepeatOne)
+        btnModeShuffle = findViewById(R.id.btnModeShuffle)
+
         layoutNormalHeader = findViewById(R.id.layoutNormalHeader)
         btnEnterSelectMode = findViewById(R.id.btnEnterSelectMode)
-        btnRefresh = findViewById(R.id.btnRefresh)
 
         layoutSelectionHeader = findViewById(R.id.layoutSelectionHeader)
         cbSelectAll = findViewById(R.id.cbSelectAll)
         tvSelectedCount = findViewById(R.id.tvSelectedCount)
         btnDeleteSelected = findViewById(R.id.btnDeleteSelected)
+        btnAddToPlaylist = findViewById(R.id.btnAddToPlaylist)
         btnCancelSelection = findViewById(R.id.btnCancelSelection)
 
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
         rvMp3List = findViewById(R.id.rvMp3List)
         tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
 
         mp3Adapter = Mp3Adapter(
             context = this,
+            onItemClicked = { item ->
+                playTrack(item)
+            },
             onSelectionChanged = { selectedCount, totalCount ->
                 updateSelectionUi(selectedCount, totalCount)
             },
@@ -186,6 +235,8 @@ class MainActivity : AppCompatActivity() {
 
         rvMp3List.layoutManager = LinearLayoutManager(this)
         rvMp3List.adapter = mp3Adapter
+
+        updateModeButtonsUi()
     }
 
     private fun setupListeners() {
@@ -231,11 +282,6 @@ class MainActivity : AppCompatActivity() {
             startExtractionFlow()
         }
 
-        // 목록 새로고침 버튼
-        btnRefresh.setOnClickListener {
-            loadMp3Files()
-        }
-
         // [선택] 버튼 클릭 -> 다중 선택 모드 진입
         btnEnterSelectMode.setOnClickListener {
             enterSelectionMode(null)
@@ -251,10 +297,85 @@ class MainActivity : AppCompatActivity() {
             mp3Adapter.selectAll(isChecked)
         }
 
-        // 선택 항목 삭제 버튼 (확인 팝업 없이 바로 시스템 권한/삭제 실행)
+        // 선택 항목 삭제 버튼
         btnDeleteSelected.setOnClickListener {
             requestDeleteSelectedMp3s()
         }
+
+        // [재생목록 추가] 버튼
+        btnAddToPlaylist.setOnClickListener {
+            val selected = mp3Adapter.getSelectedItems()
+            if (selected.isNotEmpty()) {
+                playlistItemIds.addAll(selected.map { it.id })
+                mp3Adapter.setPlaylistIds(playlistItemIds)
+                exitSelectionMode()
+                val count = mp3Adapter.itemCount
+                tvHeaderStatus.text = "[재생목록 ${playlistItemIds.size}곡] [${count}곡]"
+            }
+        }
+
+        // 아래로 당겨서 새로고침 (SwipeRefreshLayout)
+        swipeRefreshLayout.setColorSchemeColors(ContextCompat.getColor(this, R.color.secondary))
+        swipeRefreshLayout.setOnRefreshListener {
+            loadMp3Files()
+        }
+
+        // 플레이어 조작 버튼들
+        btnPlayerRewind5.setOnClickListener {
+            mediaPlayer?.let { player ->
+                val newPos = max(0, player.currentPosition - 5000)
+                player.seekTo(newPos)
+                updatePlayerTimeDisplay(newPos, player.duration)
+            }
+        }
+
+        btnPlayerForward5.setOnClickListener {
+            mediaPlayer?.let { player ->
+                val newPos = min(player.duration, player.currentPosition + 5000)
+                player.seekTo(newPos)
+                updatePlayerTimeDisplay(newPos, player.duration)
+            }
+        }
+
+        btnPlayerPlayPause.setOnClickListener {
+            togglePlayPause()
+        }
+
+        btnModeRepeatAll.setOnClickListener {
+            playbackMode = if (playbackMode == PlaybackMode.REPEAT_ALL) PlaybackMode.NORMAL else PlaybackMode.REPEAT_ALL
+            updateModeButtonsUi()
+        }
+
+        btnModeRepeatOne.setOnClickListener {
+            playbackMode = if (playbackMode == PlaybackMode.REPEAT_ONE) PlaybackMode.NORMAL else PlaybackMode.REPEAT_ONE
+            updateModeButtonsUi()
+        }
+
+        btnModeShuffle.setOnClickListener {
+            playbackMode = if (playbackMode == PlaybackMode.SHUFFLE) PlaybackMode.NORMAL else PlaybackMode.SHUFFLE
+            updateModeButtonsUi()
+        }
+
+        sbPlayerProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    mediaPlayer?.let { player ->
+                        updatePlayerTimeDisplay(progress, player.duration)
+                    }
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                isUserTrackingSeekBar = true
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                isUserTrackingSeekBar = false
+                seekBar?.let {
+                    mediaPlayer?.seekTo(it.progress)
+                }
+            }
+        })
     }
 
     private fun setupBackPressHandler() {
@@ -270,7 +391,186 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    private fun enterSelectionMode(initialItem: com.pipi.videomp3.model.Mp3Item?) {
+    // 전용 플레이어 재생 로직
+    private fun playTrack(item: Mp3Item) {
+        stopPlayback()
+        currentPlayingItem = item
+        mp3Adapter.setPlayingItemId(item.id)
+
+        tvPlayerTitle.text = item.title
+        tvPlayerTitle.isSelected = true
+
+        try {
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(this@MainActivity, item.uri)
+                prepare()
+                start()
+            }
+
+            btnPlayerPlayPause.text = "⏸ 일시정지"
+            sbPlayerProgress.max = mediaPlayer?.duration ?: 0
+            sbPlayerProgress.progress = 0
+            updatePlayerTimeDisplay(0, mediaPlayer?.duration ?: 0)
+
+            mediaPlayer?.setOnCompletionListener {
+                onTrackCompleted()
+            }
+
+            startProgressUpdater()
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            stopPlayback()
+        }
+    }
+
+    private fun togglePlayPause() {
+        if (mediaPlayer?.isPlaying == true) {
+            mediaPlayer?.pause()
+            btnPlayerPlayPause.text = "▶ 재생"
+        } else if (mediaPlayer != null) {
+            mediaPlayer?.start()
+            btnPlayerPlayPause.text = "⏸ 일시정지"
+        } else if (currentPlayingItem != null) {
+            playTrack(currentPlayingItem!!)
+        } else {
+            val all = mp3Adapter.getAllItems()
+            if (all.isNotEmpty()) {
+                playTrack(all[0])
+            }
+        }
+    }
+
+    private fun onTrackCompleted() {
+        when (playbackMode) {
+            PlaybackMode.REPEAT_ONE -> {
+                mediaPlayer?.seekTo(0)
+                mediaPlayer?.start()
+            }
+            PlaybackMode.REPEAT_ALL -> {
+                val activeList = getActivePlaylist()
+                if (activeList.isNotEmpty()) {
+                    val currentIndex = activeList.indexOfFirst { it.id == currentPlayingItem?.id }
+                    val nextIndex = if (currentIndex != -1) (currentIndex + 1) % activeList.size else 0
+                    playTrack(activeList[nextIndex])
+                } else {
+                    stopPlayback()
+                }
+            }
+            PlaybackMode.SHUFFLE -> {
+                val activeList = getActivePlaylist()
+                if (activeList.isNotEmpty()) {
+                    val nextItem = if (activeList.size > 1) {
+                        activeList.filter { it.id != currentPlayingItem?.id }.random()
+                    } else {
+                        activeList.first()
+                    }
+                    playTrack(nextItem)
+                } else {
+                    stopPlayback()
+                }
+            }
+            PlaybackMode.NORMAL -> {
+                val activeList = getActivePlaylist()
+                val currentIndex = activeList.indexOfFirst { it.id == currentPlayingItem?.id }
+                if (currentIndex != -1 && currentIndex + 1 < activeList.size) {
+                    playTrack(activeList[currentIndex + 1])
+                } else {
+                    stopPlayback()
+                }
+            }
+        }
+    }
+
+    private fun getActivePlaylist(): List<Mp3Item> {
+        val all = mp3Adapter.getAllItems()
+        return if (playlistItemIds.isNotEmpty()) {
+            all.filter { playlistItemIds.contains(it.id) }
+        } else {
+            all
+        }
+    }
+
+    private fun startProgressUpdater() {
+        playerUpdateJob?.cancel()
+        playerUpdateJob = lifecycleScope.launch {
+            while (true) {
+                mediaPlayer?.let { player ->
+                    if (player.isPlaying && !isUserTrackingSeekBar) {
+                        val current = player.currentPosition
+                        val total = player.duration
+                        sbPlayerProgress.max = total
+                        sbPlayerProgress.progress = current
+                        updatePlayerTimeDisplay(current, total)
+                    }
+                }
+                delay(300)
+            }
+        }
+    }
+
+    private fun updatePlayerTimeDisplay(currentMs: Int, totalMs: Int) {
+        val currentStr = formatMs(currentMs.toLong())
+        val totalStr = formatMs(totalMs.toLong())
+        tvPlayerTime.text = "$currentStr / $totalStr"
+    }
+
+    private fun formatMs(ms: Long): String {
+        if (ms <= 0) return "00:00"
+        val totalSec = ms / 1000
+        val min = totalSec / 60
+        val sec = totalSec % 60
+        return String.format(Locale.getDefault(), "%02d:%02d", min, sec)
+    }
+
+    private fun stopPlayback() {
+        playerUpdateJob?.cancel()
+        playerUpdateJob = null
+        mediaPlayer?.let {
+            if (it.isPlaying) it.stop()
+            it.release()
+        }
+        mediaPlayer = null
+        btnPlayerPlayPause.text = "▶ 재생"
+        sbPlayerProgress.progress = 0
+        mp3Adapter.setPlayingItemId(null)
+    }
+
+    private fun updateModeButtonsUi() {
+        val activeBg = ContextCompat.getColor(this, R.color.primary)
+        val inactiveBg = ContextCompat.getColor(this, R.color.surface_variant)
+        val activeText = Color.WHITE
+        val inactiveText = ContextCompat.getColor(this, R.color.on_surface_secondary)
+
+        // 🔁 전체반복
+        if (playbackMode == PlaybackMode.REPEAT_ALL) {
+            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(activeBg)
+            btnModeRepeatAll.setTextColor(activeText)
+        } else {
+            btnModeRepeatAll.backgroundTintList = ColorStateList.valueOf(inactiveBg)
+            btnModeRepeatAll.setTextColor(inactiveText)
+        }
+
+        // 🔂 1곡반복
+        if (playbackMode == PlaybackMode.REPEAT_ONE) {
+            btnModeRepeatOne.backgroundTintList = ColorStateList.valueOf(activeBg)
+            btnModeRepeatOne.setTextColor(activeText)
+        } else {
+            btnModeRepeatOne.backgroundTintList = ColorStateList.valueOf(inactiveBg)
+            btnModeRepeatOne.setTextColor(inactiveText)
+        }
+
+        // 🔀 랜덤반복
+        if (playbackMode == PlaybackMode.SHUFFLE) {
+            btnModeShuffle.backgroundTintList = ColorStateList.valueOf(activeBg)
+            btnModeShuffle.setTextColor(activeText)
+        } else {
+            btnModeShuffle.backgroundTintList = ColorStateList.valueOf(inactiveBg)
+            btnModeShuffle.setTextColor(inactiveText)
+        }
+    }
+
+    private fun enterSelectionMode(initialItem: Mp3Item?) {
         layoutNormalHeader.visibility = View.GONE
         layoutSelectionHeader.visibility = View.VISIBLE
         mp3Adapter.enterSelectionMode(initialItem)
@@ -283,9 +583,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateSelectionUi(selectedCount: Int, totalCount: Int) {
-        tvSelectedCount.text = "${selectedCount}개 선택됨"
+        tvSelectedCount.text = "${selectedCount}개"
         btnDeleteSelected.isEnabled = selectedCount > 0
         btnDeleteSelected.alpha = if (selectedCount > 0) 1.0f else 0.5f
+
+        btnAddToPlaylist.isEnabled = selectedCount > 0
+        btnAddToPlaylist.alpha = if (selectedCount > 0) 1.0f else 0.5f
 
         cbSelectAll.setOnCheckedChangeListener(null)
         cbSelectAll.isChecked = (totalCount > 0 && selectedCount == totalCount)
@@ -316,7 +619,7 @@ class MainActivity : AppCompatActivity() {
         RecordingService.onRecordingSaved = { _, success ->
             runOnUiThread {
                 if (success) {
-                    loadMp3Files()
+                    loadMp3Files(scrollToTop = true)
                 }
                 updateStatusText()
             }
@@ -406,7 +709,7 @@ class MainActivity : AppCompatActivity() {
 
             if (result.isSuccess) {
                 etYoutubeUrl.setText("")
-                loadMp3Files()
+                loadMp3Files(scrollToTop = true)
             }
             updateStatusText()
         }
@@ -434,7 +737,7 @@ class MainActivity : AppCompatActivity() {
                 selectedLocalVideoUri = null
                 selectedLocalVideoName = ""
                 etYoutubeUrl.setText("")
-                loadMp3Files()
+                loadMp3Files(scrollToTop = true)
             }
             updateStatusText()
         }
@@ -450,14 +753,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadMp3Files() {
+    private fun loadMp3Files(scrollToTop: Boolean = false) {
         lifecycleScope.launch(Dispatchers.IO) {
             val list = Mp3StorageHelper.getAllExtractedMp3Files(this@MainActivity)
             withContext(Dispatchers.Main) {
                 mp3Adapter.submitList(list)
                 updateStatusText()
+                swipeRefreshLayout.isRefreshing = false
                 tvEmptyMessage.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
                 btnEnterSelectMode.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+                if (scrollToTop && list.isNotEmpty()) {
+                    rvMp3List.post {
+                        rvMp3List.scrollToPosition(0)
+                    }
+                }
                 if (list.isEmpty() && mp3Adapter.isSelectionMode) {
                     exitSelectionMode()
                 }
@@ -521,9 +830,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * 선택된 다중 MP3 파일 삭제 (앱 확인 팝업 없이 1단계로 시스템 권한 및 삭제 직행)
-     */
     private fun requestDeleteSelectedMp3s() {
         val selectedItems = mp3Adapter.getSelectedItems()
         if (selectedItems.isEmpty()) return
@@ -531,7 +837,6 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val uris = selectedItems.map { it.uri }
 
-            // Android 11+ (API 30+): MediaStore.createDeleteRequest로 선택된 모든 파일을 묶어 한 번에 시스템 팝업 호출
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 try {
                     val pi = MediaStore.createDeleteRequest(contentResolver, uris)
@@ -544,7 +849,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Android 10 이하 또는 직접 삭제 가능한 파일 처리
             var securityException: SecurityException? = null
             for (item in selectedItems) {
                 try {

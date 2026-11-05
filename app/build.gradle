@@ -11,8 +11,8 @@ android {
         applicationId "com.pipi.videomp3"
         minSdk 24
         targetSdk 34
-        versionCode 9
-        versionName "3.5_1105_1820"
+        versionCode 10
+        versionName "3.6_1105_2145"
     }
 
     buildTypes {
@@ -37,6 +37,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
     implementation 'androidx.documentfile:documentfile:1.0.1'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 
     // OkHttp (초고속 스트리밍 음원 다운로드 & API 호출)
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'

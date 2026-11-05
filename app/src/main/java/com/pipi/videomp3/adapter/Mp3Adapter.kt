@@ -3,7 +3,7 @@ package com.pipi.videomp3.adapter
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.media.MediaPlayer
+import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,33 +18,46 @@ import java.util.Locale
 
 class Mp3Adapter(
     private val context: Context,
+    private val onItemClicked: (item: Mp3Item) -> Unit,
     private val onSelectionChanged: (selectedCount: Int, totalCount: Int) -> Unit,
     private val onStartSelectionMode: (initialItem: Mp3Item) -> Unit
 ) : RecyclerView.Adapter<Mp3Adapter.Mp3ViewHolder>() {
 
     private val items = mutableListOf<Mp3Item>()
     private val selectedIds = mutableSetOf<Long>()
+    private val playlistIds = mutableSetOf<Long>()
+    private var playingItemId: Long? = null
+
     var isSelectionMode = false
         private set
 
-    private var mediaPlayer: MediaPlayer? = null
-    private var playingItemPosition: Int = -1
-
     fun submitList(newItems: List<Mp3Item>) {
-        stopPlayback()
         items.clear()
         items.addAll(newItems)
         val currentIds = items.map { it.id }.toSet()
         selectedIds.retainAll(currentIds)
+        playlistIds.retainAll(currentIds)
         notifyDataSetChanged()
         if (isSelectionMode) {
             onSelectionChanged(selectedIds.size, items.size)
         }
     }
 
+    fun setPlayingItemId(id: Long?) {
+        playingItemId = id
+        notifyDataSetChanged()
+    }
+
+    fun setPlaylistIds(ids: Set<Long>) {
+        playlistIds.clear()
+        playlistIds.addAll(ids)
+        notifyDataSetChanged()
+    }
+
+    fun getPlaylistIds(): Set<Long> = playlistIds.toSet()
+
     fun enterSelectionMode(initialItem: Mp3Item? = null) {
         isSelectionMode = true
-        stopPlayback()
         selectedIds.clear()
         initialItem?.let { selectedIds.add(it.id) }
         notifyDataSetChanged()
@@ -72,6 +85,8 @@ class Mp3Adapter(
         return items.filter { selectedIds.contains(it.id) }
     }
 
+    fun getAllItems(): List<Mp3Item> = items.toList()
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Mp3ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_mp3_row, parent, false)
         return Mp3ViewHolder(view)
@@ -82,19 +97,6 @@ class Mp3Adapter(
     }
 
     override fun getItemCount(): Int = items.size
-
-    fun stopPlayback() {
-        mediaPlayer?.let {
-            if (it.isPlaying) it.stop()
-            it.release()
-        }
-        mediaPlayer = null
-        val oldPos = playingItemPosition
-        playingItemPosition = -1
-        if (oldPos != -1 && oldPos < items.size) {
-            notifyItemChanged(oldPos)
-        }
-    }
 
     inner class Mp3ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val cbSelect: CheckBox = itemView.findViewById(R.id.cbRowSelect)
@@ -123,6 +125,7 @@ class Mp3Adapter(
                 }
 
                 tvTitle.setTextColor(ContextCompat.getColor(context, R.color.on_surface))
+                tvTitle.setTypeface(null, Typeface.NORMAL)
 
                 val toggleListener = View.OnClickListener {
                     toggle(item)
@@ -138,21 +141,29 @@ class Mp3Adapter(
                 btnShare.visibility = View.VISIBLE
                 itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.surface))
 
-                val isCurrentPlaying = (position == playingItemPosition && mediaPlayer != null && mediaPlayer!!.isPlaying)
+                // 색상 규칙:
+                // 1) 재생 중인 파일: 파란색 굵은 글씨 (#0381FE, bold)
+                // 2) 재생 목록에 있는 파일: 하늘색 글씨 (#29B6F6, normal)
+                // 3) 일반 파일: 기본 흰색 (#FFFFFF)
+                val isCurrentPlaying = (item.id == playingItemId)
+                val isInPlaylist = playlistIds.contains(item.id)
+
                 if (isCurrentPlaying) {
                     tvTitle.setTextColor(Color.parseColor("#0381FE"))
+                    tvTitle.setTypeface(null, Typeface.BOLD)
+                } else if (isInPlaylist) {
+                    tvTitle.setTextColor(Color.parseColor("#29B6F6"))
+                    tvTitle.setTypeface(null, Typeface.NORMAL)
                 } else {
                     tvTitle.setTextColor(ContextCompat.getColor(context, R.color.on_surface))
+                    tvTitle.setTypeface(null, Typeface.NORMAL)
                 }
 
-                tvTitle.setOnClickListener {
-                    if (isCurrentPlaying) {
-                        stopPlayback()
-                    } else {
-                        startPlayback(item, position)
-                    }
+                val clickListener = View.OnClickListener {
+                    onItemClicked(item)
                 }
-                itemView.setOnClickListener(null)
+                tvTitle.setOnClickListener(clickListener)
+                itemView.setOnClickListener(clickListener)
 
                 val longClickListener = View.OnLongClickListener {
                     onStartSelectionMode(item)
@@ -179,27 +190,6 @@ class Mp3Adapter(
             }
             notifyItemChanged(adapterPosition)
             onSelectionChanged(selectedIds.size, items.size)
-        }
-
-        private fun startPlayback(item: Mp3Item, position: Int) {
-            stopPlayback()
-            playingItemPosition = position
-            notifyItemChanged(position)
-
-            try {
-                mediaPlayer = MediaPlayer().apply {
-                    setDataSource(context, item.uri)
-                    prepare()
-                    start()
-                }
-
-                mediaPlayer?.setOnCompletionListener {
-                    stopPlayback()
-                }
-
-            } catch (e: Exception) {
-                stopPlayback()
-            }
         }
 
         private fun openInSamsungMusic(item: Mp3Item) {

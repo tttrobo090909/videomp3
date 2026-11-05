@@ -5,12 +5,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.graphics.Color
-import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
@@ -27,16 +24,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.pipi.videomp3.adapter.Mp3Adapter
+import com.pipi.videomp3.service.RecordingService
 import com.pipi.videomp3.util.LocalVideoExtractor
 import com.pipi.videomp3.util.Mp3StorageHelper
 import com.pipi.videomp3.util.YouTubeExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileInputStream
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -58,12 +52,8 @@ class MainActivity : AppCompatActivity() {
 
     // 상태 변수들
     private var isExtracting = false
-    private var isRecording = false
-    private var mediaRecorder: MediaRecorder? = null
-    private var tempRecordingFile: File? = null
-    private var recordingSeconds = 0
-    private val recordingHandler = Handler(Looper.getMainLooper())
-    private var recordingTimerRunnable: Runnable? = null
+    private val isRecording: Boolean
+        get() = RecordingService.isServiceRunning
 
     private var selectedLocalVideoUri: Uri? = null
     private var selectedLocalVideoName: String = ""
@@ -81,11 +71,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 마이크 권한 요청 런처
-    private val requestRecordAudioLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
+    // 마이크 및 알림 권한 요청 런처
+    private val requestRecordPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val recordGranted = permissions[android.Manifest.permission.RECORD_AUDIO] == true ||
+                ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+        if (recordGranted) {
             startVoiceRecording()
         } else {
             Toast.makeText(this, "녹음 기능을 사용하려면 마이크 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
@@ -109,11 +102,22 @@ class MainActivity : AppCompatActivity() {
         loadMp3Files()
     }
 
+    override fun onResume() {
+        super.onResume()
+        attachRecordingListeners()
+        syncRecordingState()
+        loadMp3Files()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        RecordingService.stateListener = null
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        if (isRecording) {
-            stopVoiceRecording(save = false)
-        }
+        RecordingService.stateListener = null
+        RecordingService.onRecordingSaved = null
         mp3Adapter.stopPlayback()
     }
 
@@ -194,14 +198,70 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun attachRecordingListeners() {
+        RecordingService.stateListener = { recording, seconds ->
+            runOnUiThread {
+                if (recording) {
+                    btnRecord.text = "♠"
+                    btnRecord.setTextColor(Color.WHITE)
+                    val m = seconds / 60
+                    val s = seconds % 60
+                    val timeStr = String.format(Locale.getDefault(), "%02d:%02d", m, s)
+                    val count = mp3Adapter.itemCount
+                    tvHeaderStatus.text = "[녹음중 $timeStr] [${count}곡]"
+                } else {
+                    btnRecord.text = "♤"
+                    btnRecord.setTextColor(Color.parseColor("#888888"))
+                    updateStatusText()
+                }
+            }
+        }
+
+        RecordingService.onRecordingSaved = { _, success ->
+            runOnUiThread {
+                if (success) {
+                    loadMp3Files()
+                }
+                updateStatusText()
+            }
+        }
+    }
+
+    private fun syncRecordingState() {
+        if (RecordingService.isServiceRunning) {
+            btnRecord.text = "♠"
+            btnRecord.setTextColor(Color.WHITE)
+            val sec = RecordingService.recordingSeconds
+            val m = sec / 60
+            val s = sec % 60
+            val timeStr = String.format(Locale.getDefault(), "%02d:%02d", m, s)
+            val count = mp3Adapter.itemCount
+            tvHeaderStatus.text = "[녹음중 $timeStr] [${count}곡]"
+        } else {
+            btnRecord.text = "♤"
+            btnRecord.setTextColor(Color.parseColor("#888888"))
+            updateStatusText()
+        }
+    }
+
     /**
-     * 마이크 녹음 권한 확인 후 녹음 시작
+     * 마이크 및 알림 권한 확인 후 녹음 시작
      */
     private fun checkAndStartRecording() {
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+        val permissions = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(android.Manifest.permission.RECORD_AUDIO)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        if (permissions.isEmpty()) {
             startVoiceRecording()
         } else {
-            requestRecordAudioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            requestRecordPermissionsLauncher.launch(permissions.toTypedArray())
         }
     }
 
@@ -210,106 +270,11 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "추출 작업 중에는 녹음할 수 없습니다.", Toast.LENGTH_SHORT).show()
             return
         }
-
-        try {
-            tempRecordingFile = File(cacheDir, "rec_${System.currentTimeMillis()}.m4a")
-
-            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(this)
-            } else {
-                MediaRecorder()
-            }.apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioEncodingBitRate(192000)
-                setAudioSamplingRate(44100)
-                setOutputFile(tempRecordingFile!!.absolutePath)
-                prepare()
-                start()
-            }
-
-            isRecording = true
-            recordingSeconds = 0
-
-            // 녹음 시작 시: ♠ (하얀색 채움)
-            btnRecord.text = "♠"
-            btnRecord.setTextColor(Color.WHITE)
-
-            recordingTimerRunnable = object : Runnable {
-                override fun run() {
-                    if (isRecording) {
-                        recordingSeconds++
-                        val m = recordingSeconds / 60
-                        val s = recordingSeconds % 60
-                        val timeStr = String.format(Locale.getDefault(), "%02d:%02d", m, s)
-                        val count = mp3Adapter.itemCount
-                        tvHeaderStatus.text = "[녹음중 $timeStr] [${count}곡]"
-                        recordingHandler.postDelayed(this, 1000)
-                    }
-                }
-            }
-            recordingHandler.post(recordingTimerRunnable!!)
-
-            Toast.makeText(this, "녹음이 시작되었습니다. ♠ 버튼을 다시 누르면 저장됩니다.", Toast.LENGTH_SHORT).show()
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "녹음을 시작하지 못했습니다: ${e.message}", Toast.LENGTH_SHORT).show()
-            isRecording = false
-            btnRecord.text = "♤"
-            btnRecord.setTextColor(Color.parseColor("#888888"))
-        }
+        RecordingService.startRecording(this)
     }
 
     private fun stopVoiceRecording(save: Boolean) {
-        recordingTimerRunnable?.let { recordingHandler.removeCallbacks(it) }
-        try {
-            mediaRecorder?.stop()
-            mediaRecorder?.release()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        mediaRecorder = null
-        isRecording = false
-
-        // 녹음 종료 시: ♤ (짙은 회색)
-        btnRecord.text = "♤"
-        btnRecord.setTextColor(Color.parseColor("#888888"))
-
-        val temp = tempRecordingFile
-        if (save && temp != null && temp.exists() && temp.length() > 0) {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA).format(Date())
-            val finalTitle = "내음성_$timeStamp"
-
-            lifecycleScope.launch(Dispatchers.IO) {
-                val savedUri = FileInputStream(temp).use { input ->
-                    Mp3StorageHelper.saveStreamToMusicFolder(
-                        context = this@MainActivity,
-                        rawTitle = finalTitle,
-                        inputStream = input,
-                        totalBytes = temp.length(),
-                        mimeType = "audio/mp4",
-                        extension = ".m4a",
-                        onProgress = {}
-                    )
-                }
-                temp.delete()
-
-                withContext(Dispatchers.Main) {
-                    if (savedUri != null) {
-                        Toast.makeText(this@MainActivity, "Music/영상MP3에 녹음이 저장되었습니다! 🎙️", Toast.LENGTH_LONG).show()
-                        loadMp3Files()
-                    } else {
-                        Toast.makeText(this@MainActivity, "녹음 파일 저장에 실패했습니다.", Toast.LENGTH_SHORT).show()
-                    }
-                    updateStatusText()
-                }
-            }
-        } else {
-            temp?.delete()
-            updateStatusText()
-        }
+        RecordingService.stopRecording(this, save = save)
     }
 
     private fun startExtractionFlow() {
@@ -468,6 +433,7 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(android.Manifest.permission.READ_MEDIA_AUDIO)
             permissions.add(android.Manifest.permission.READ_MEDIA_VIDEO)
+            permissions.add(android.Manifest.permission.POST_NOTIFICATIONS)
         } else {
             permissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
             permissions.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)

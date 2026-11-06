@@ -3,6 +3,7 @@ package com.pipi.videomp3.util
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -29,8 +30,73 @@ object Mp3StorageHelper {
     }
 
     /**
+     * 중복 파일명 방지를 위한 다음 순번 파일명 탐색 (_1, _2, _3 ...)
+     */
+    private fun getNextSequentialFileName(context: Context, rawTitle: String, extension: String): String {
+        val ext = if (extension.startsWith(".")) extension else ".$extension"
+        val cleanBase = rawTitle.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+            .removeSuffix(".mp3").removeSuffix(".m4a")
+        val baseName = if (cleanBase.isBlank()) "추출음악" else cleanBase
+
+        // 1. 현재 폴더에 존재하는 파일명 목록 조회
+        val existingNames = mutableSetOf<String>()
+        try {
+            val projection = arrayOf(MediaStore.Audio.Media.DISPLAY_NAME)
+            val selection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? OR ${MediaStore.Audio.Media.DATA} LIKE ?"
+            } else {
+                "${MediaStore.Audio.Media.DATA} LIKE ?"
+            }
+            val selectionArgs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                arrayOf("%Music/영상MP3%", "%/Music/영상MP3/%")
+            } else {
+                arrayOf("%/Music/영상MP3/%")
+            }
+
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                val nameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
+                if (nameCol != -1) {
+                    while (cursor.moveToNext()) {
+                        cursor.getString(nameCol)?.let { existingNames.add(it) }
+                    }
+                }
+            }
+        } catch (ignored: Exception) {}
+
+        // 로컬 디렉터리 파일 목록도 체크
+        try {
+            val musicDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), SUB_FOLDER)
+            if (musicDir.exists()) {
+                musicDir.listFiles()?.forEach { file ->
+                    existingNames.add(file.name)
+                }
+            }
+        } catch (ignored: Exception) {}
+
+        val candidateOriginal = "$baseName$ext"
+        if (!existingNames.contains(candidateOriginal)) {
+            return candidateOriginal
+        }
+
+        // _1, _2, _3 ... 순번 탐색
+        var index = 1
+        while (true) {
+            val candidate = "${baseName}_$index$ext"
+            if (!existingNames.contains(candidate)) {
+                return candidate
+            }
+            index++
+        }
+    }
+
+    /**
      * 입력 스트림(다운로드 또는 변환)을 스마트폰의 [Music/영상MP3] 폴더에 파일로 저장합니다.
-     * MediaStore 저장을 1차 시도하고, 실패 시 직접 파일 시스템 및 MediaScanner를 통한 2차 안전 저장을 수행합니다.
      */
     fun saveStreamToMusicFolder(
         context: Context,
@@ -42,14 +108,14 @@ object Mp3StorageHelper {
         extension: String = ".mp3",
         onProgress: (Int) -> Unit
     ): Uri? {
-        val baseFileName = sanitizeFileName(rawTitle, extension)
         val resolver = context.contentResolver
+        val ext = if (extension.startsWith(".")) extension else ".$extension"
+        val fileNameToUse = getNextSequentialFileName(context, rawTitle, ext)
 
         // 1차: MediaStore Scoped Storage 시도 (Android 10+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var fileName = baseFileName
             val contentValues = ContentValues().apply {
-                put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Audio.Media.DISPLAY_NAME, fileNameToUse)
                 put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
                 put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/$SUB_FOLDER")
                 if (durationMs > 0) {
@@ -58,22 +124,10 @@ object Mp3StorageHelper {
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
             }
 
-            var uri = try {
+            val uri = try {
                 resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
             } catch (e: Exception) {
                 null
-            }
-
-            // 중복 파일명 등으로 실패할 경우 타임스탬프를 덧붙여 재시도
-            if (uri == null) {
-                val timeStamp = System.currentTimeMillis() % 100000
-                fileName = sanitizeFileName("${rawTitle}_$timeStamp", extension)
-                contentValues.put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
-                uri = try {
-                    resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
-                } catch (e: Exception) {
-                    null
-                }
             }
 
             if (uri != null) {
@@ -94,10 +148,24 @@ object Mp3StorageHelper {
                         outputStream.flush()
                     }
 
+                    // 정확한 재생시간 측정 (파라미터 durationMs가 없으면 저장된 Uri에서 pfd로 직접 측정)
+                    var finalDuration = durationMs
+                    if (finalDuration <= 0L) {
+                        try {
+                            resolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                                val mmr = MediaMetadataRetriever()
+                                mmr.setDataSource(pfd.fileDescriptor)
+                                val durStr = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                finalDuration = durStr?.toLongOrNull() ?: 0L
+                                mmr.release()
+                            }
+                        } catch (ignored: Exception) {}
+                    }
+
                     contentValues.clear()
                     contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
-                    if (durationMs > 0) {
-                        contentValues.put(MediaStore.Audio.Media.DURATION, durationMs)
+                    if (finalDuration > 0) {
+                        contentValues.put(MediaStore.Audio.Media.DURATION, finalDuration)
                     }
                     resolver.update(uri, contentValues, null, null)
 
@@ -114,11 +182,7 @@ object Mp3StorageHelper {
             val musicDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), SUB_FOLDER)
             if (!musicDir.exists()) musicDir.mkdirs()
 
-            var targetFile = File(musicDir, baseFileName)
-            if (targetFile.exists()) {
-                val timeStamp = System.currentTimeMillis() % 100000
-                targetFile = File(musicDir, sanitizeFileName("${rawTitle}_$timeStamp", extension))
-            }
+            val targetFile = File(musicDir, fileNameToUse)
 
             FileOutputStream(targetFile).use { outputStream ->
                 val buffer = ByteArray(8 * 1024)
@@ -152,7 +216,6 @@ object Mp3StorageHelper {
 
     /**
      * 오직 [Music/영상MP3] 폴더 안에 저장된 파일만 엄격하게 필터링하여 조회합니다 (최신순).
-     * 스마트폰의 다른 음악이나 통화녹음 등은 일절 조회되지 않습니다.
      */
     fun getAllExtractedMp3Files(context: Context): List<Mp3Item> {
         val list = mutableListOf<Mp3Item>()
@@ -219,13 +282,30 @@ object Mp3StorageHelper {
                     val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
 
                     var finalDuration = duration
+                    // duration이 0이거나 미등록 상태일 때 openFileDescriptor를 통해 정확한 실제 재생시간 직접 파싱
                     if (finalDuration <= 0L) {
                         try {
-                            val mmr = android.media.MediaMetadataRetriever()
-                            mmr.setDataSource(context, uri)
-                            val durStr = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                            finalDuration = durStr?.toLongOrNull() ?: 0L
-                            mmr.release()
+                            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                                val mmr = MediaMetadataRetriever()
+                                mmr.setDataSource(pfd.fileDescriptor)
+                                val durStr = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                finalDuration = durStr?.toLongOrNull() ?: 0L
+                                mmr.release()
+                            }
+                        } catch (ignored: Exception) {}
+                    }
+
+                    // 파일 직접 경로가 유효한 경우 3차 폴백
+                    if (finalDuration <= 0L && dataPath.isNotBlank()) {
+                        try {
+                            val f = File(dataPath)
+                            if (f.exists()) {
+                                val mmr = MediaMetadataRetriever()
+                                mmr.setDataSource(f.absolutePath)
+                                val durStr = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                finalDuration = durStr?.toLongOrNull() ?: 0L
+                                mmr.release()
+                            }
                         } catch (ignored: Exception) {}
                     }
 

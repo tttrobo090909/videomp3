@@ -212,47 +212,47 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- 플레이어 컨트롤 버튼들 (크기 2배 확대, 40dp, 간격 시원하게 8dp, 기본 화이트, 활성화 시 하늘색 점등) -->
+        <!-- 플레이어 컨트롤 버튼들 (좌측 70% 축소 28dp, 우측 확대 44dp, 100% 화이트 벡터 아이콘, 활성화 시 하늘색 점등) -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="44dp"
             android:layout_marginTop="6dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- [좌측 모드 버튼 그룹: 순수 단색 벡터 아이콘, 글자 삭제, 크기 40dp 확대] -->
+            <!-- [좌측 모드 버튼 그룹: 순수 단색 벡터 아이콘, 70% 축소 28dp] -->
             <!-- 🔂 1곡반복 (순환 화살표 + 1 아이콘) -->
             <ImageButton
                 android:id="@+id/btnModeRepeatOne"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:scaleType="fitCenter"
-                android:padding="6dp"
+                android:padding="3dp"
                 android:src="@drawable/ic_repeat_one"
                 android:tint="#FFFFFF" />
 
             <!-- 🔁 전체반복 (순환 화살표 아이콘) -->
             <ImageButton
                 android:id="@+id/btnModeRepeatAll"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:scaleType="fitCenter"
-                android:padding="6dp"
+                android:padding="3dp"
                 android:src="@drawable/ic_repeat"
                 android:tint="#FFFFFF" />
 
             <!-- 🔀 랜덤재생 (셔플 교차 화살표 아이콘) -->
             <ImageButton
                 android:id="@+id/btnModeShuffle"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:scaleType="fitCenter"
-                android:padding="6dp"
+                android:padding="3dp"
                 android:src="@drawable/ic_shuffle"
                 android:tint="#FFFFFF" />
 
@@ -261,86 +261,65 @@
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
-            <!-- [우측 재생 조작계 그룹: 이전 / ⏪5s / ▶⏹전환 / 5s⏩ / 다음] (크기 확대 & 간격 8dp) -->
+            <!-- [우측 재생 조작계 그룹: 이전 / 5초되감기 / ▶⏹전환 / 5초빨리감기 / 다음] (40~44dp 시원하게 확대, 100% 화이트 벡터) -->
             <!-- ⏮ 이전곡 -->
-            <TextView
+            <ImageButton
                 android:id="@+id/btnPlayerPrevTrack"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                android:text="⏮"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp" />
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:src="@drawable/ic_skip_previous"
+                android:tint="#FFFFFF" />
 
-            <!-- ⏪5s (소문자 5s) -->
-            <TextView
+            <!-- ⏪5s (5초 되감기 순수 화이트 벡터) -->
+            <ImageButton
                 android:id="@+id/btnPlayerRewind5"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                android:text="⏪5s"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:src="@drawable/ic_fast_rewind"
+                android:tint="#FFFFFF" />
 
-            <!-- ▶ / ⏹ 재생·정지 상호 전환 단일 버튼 -->
-            <TextView
+            <!-- ▶ / ⏹ 재생·정지 상호 전환 단일 버튼 (순수 화이트 벡터 아이콘) -->
+            <ImageButton
                 android:id="@+id/btnPlayerPlayStop"
-                android:layout_width="36dp"
-                android:layout_height="match_parent"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:text="▶"
-                android:textColor="#FFFFFF"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:src="@drawable/ic_play_arrow"
+                android:tint="#FFFFFF" />
 
-            <!-- 5s⏩ (소문자 5s) -->
-            <TextView
+            <!-- 5s⏩ (5초 빨리감기 순수 화이트 벡터) -->
+            <ImageButton
                 android:id="@+id/btnPlayerForward5"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                android:text="5s⏩"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:src="@drawable/ic_fast_forward"
+                android:tint="#FFFFFF" />
 
             <!-- ⏭ 다음곡 -->
-            <TextView
+            <ImageButton
                 android:id="@+id/btnPlayerNextTrack"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                android:text="⏭"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp" />
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:src="@drawable/ic_skip_next"
+                android:tint="#FFFFFF" />
         </LinearLayout>
     </LinearLayout>
 

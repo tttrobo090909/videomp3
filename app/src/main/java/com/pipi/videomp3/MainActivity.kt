@@ -78,11 +78,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnModeRepeatAll: ImageButton
     private lateinit var btnModeShuffle: ImageButton
 
-    private lateinit var btnPlayerPrevTrack: TextView
-    private lateinit var btnPlayerRewind5: TextView
-    private lateinit var btnPlayerPlayStop: TextView
-    private lateinit var btnPlayerForward5: TextView
-    private lateinit var btnPlayerNextTrack: TextView
+    private lateinit var btnPlayerPrevTrack: ImageButton
+    private lateinit var btnPlayerRewind5: ImageButton
+    private lateinit var btnPlayerPlayStop: ImageButton
+    private lateinit var btnPlayerForward5: ImageButton
+    private lateinit var btnPlayerNextTrack: ImageButton
 
     // 일반 모드 헤더
     private lateinit var layoutNormalHeader: LinearLayout
@@ -334,7 +334,7 @@ class MainActivity : AppCompatActivity() {
                 mp3Adapter.setPlaylistIds(playlistItemIds)
                 exitSelectionMode()
                 val count = mp3Adapter.itemCount
-                tvHeaderStatus.text = "[재생목록 ${playlistItemIds.size}곡] [${count}곡]"
+                tvHeaderStatus.text = "[재생목록 ${playlistItemIds.size}곡]   [${count}곡]"
             }
         }
 
@@ -456,8 +456,8 @@ class MainActivity : AppCompatActivity() {
                 start()
             }
 
-            btnPlayerPlayStop.text = "⏹"
-            btnPlayerPlayStop.setTextColor(Color.parseColor("#4FC3F7"))
+            btnPlayerPlayStop.setImageResource(R.drawable.ic_stop)
+            btnPlayerPlayStop.setColorFilter(Color.parseColor("#4FC3F7"))
             sbPlayerProgress.max = mediaPlayer?.duration ?: 0
             sbPlayerProgress.progress = 0
             updatePlayerTimeDisplay(0, mediaPlayer?.duration ?: 0)
@@ -480,8 +480,8 @@ class MainActivity : AppCompatActivity() {
             return
         } else if (mediaPlayer != null) {
             mediaPlayer?.start()
-            btnPlayerPlayStop.text = "⏹"
-            btnPlayerPlayStop.setTextColor(Color.parseColor("#4FC3F7"))
+            btnPlayerPlayStop.setImageResource(R.drawable.ic_stop)
+            btnPlayerPlayStop.setColorFilter(Color.parseColor("#4FC3F7"))
         } else if (currentPlayingItem != null) {
             playTrack(currentPlayingItem!!)
         } else {
@@ -603,8 +603,8 @@ class MainActivity : AppCompatActivity() {
             it.release()
         }
         mediaPlayer = null
-        btnPlayerPlayStop.text = "▶"
-        btnPlayerPlayStop.setTextColor(Color.WHITE)
+        btnPlayerPlayStop.setImageResource(R.drawable.ic_play_arrow)
+        btnPlayerPlayStop.setColorFilter(Color.WHITE)
         sbPlayerProgress.progress = 0
         mp3Adapter.setPlayingItemId(null)
     }
@@ -663,7 +663,7 @@ class MainActivity : AppCompatActivity() {
                     val s = seconds % 60
                     val timeStr = String.format(Locale.getDefault(), "%02d:%02d", m, s)
                     val count = mp3Adapter.itemCount
-                    tvHeaderStatus.text = "[녹음중 $timeStr] [${count}곡]"
+                    tvHeaderStatus.text = "[녹음중 $timeStr]   [${count}곡]"
                     tvHeaderStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.secondary))
                 } else {
                     btnRecord.text = "♤"
@@ -692,7 +692,7 @@ class MainActivity : AppCompatActivity() {
             val s = sec % 60
             val timeStr = String.format(Locale.getDefault(), "%02d:%02d", m, s)
             val count = mp3Adapter.itemCount
-            tvHeaderStatus.text = "[녹음중 $timeStr] [${count}곡]"
+            tvHeaderStatus.text = "[녹음중 $timeStr]   [${count}곡]"
         } else {
             btnRecord.text = "♤"
             btnRecord.setTextColor(Color.parseColor("#888888"))
@@ -759,7 +759,7 @@ class MainActivity : AppCompatActivity() {
                 youtubeUrl = url,
                 onProgress = { percent, statusText ->
                     val count = mp3Adapter.itemCount
-                    tvHeaderStatus.text = "[$statusText] [${count}곡]"
+                    tvHeaderStatus.text = "[$statusText]   [${count}곡]"
                     tvHeaderStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.secondary))
                 }
             )
@@ -786,7 +786,7 @@ class MainActivity : AppCompatActivity() {
                 fileName = fileNameToUse,
                 onProgress = { percent, statusText ->
                     val count = mp3Adapter.itemCount
-                    tvHeaderStatus.text = "[$statusText] [${count}곡]"
+                    tvHeaderStatus.text = "[$statusText]   [${count}곡]"
                     tvHeaderStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.secondary))
                 }
             )
@@ -851,11 +851,11 @@ class MainActivity : AppCompatActivity() {
 
         val url = etYoutubeUrl.text.toString().trim()
         if (selectedLocalVideoUri != null) {
-            tvHeaderStatus.text = "[동영상 선택중] [${count}곡]"
+            tvHeaderStatus.text = "[동영상 선택중]   [${count}곡]"
         } else if (url.isNotBlank()) {
-            tvHeaderStatus.text = "[유튜브 선택중] [${count}곡]"
+            tvHeaderStatus.text = "[유튜브 선택중]   [${count}곡]"
         } else {
-            tvHeaderStatus.text = "[완료] [${count}곡]"
+            tvHeaderStatus.text = "[완료]   [${count}곡]"
         }
     }
 

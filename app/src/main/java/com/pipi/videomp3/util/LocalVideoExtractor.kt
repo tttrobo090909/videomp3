@@ -132,6 +132,19 @@ object LocalVideoExtractor {
 
             extractor.release()
 
+            // 3. 생성된 m4a 파일의 실제 재생시간 직접 정밀 측정
+            var outputDurationMs = durationMs
+            try {
+                val mmrOut = MediaMetadataRetriever()
+                mmrOut.setDataSource(tempOutputFile.absolutePath)
+                val outDurStr = mmrOut.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                val parsed = outDurStr?.toLongOrNull() ?: 0L
+                if (parsed > 0L) {
+                    outputDurationMs = parsed
+                }
+                mmrOut.release()
+            } catch (ignored: Exception) {}
+
             withContext(Dispatchers.Main) {
                 onProgress(85, "저장중")
             }
@@ -143,7 +156,7 @@ object LocalVideoExtractor {
                     rawTitle = cleanTitle,
                     inputStream = input,
                     totalBytes = tempOutputFile.length(),
-                    durationMs = durationMs,
+                    durationMs = outputDurationMs,
                     mimeType = "audio/mp4",
                     extension = ".m4a",
                     onProgress = { onProgress(85 + (it * 15 / 100), "저장중") }
